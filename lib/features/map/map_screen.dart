@@ -12,6 +12,27 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
+  MapLibreMapController? _controller;
+
+  void _onMapCreated(MapLibreMapController controller) {
+    _controller = controller;
+  }
+
+  /// Frame the whole Philippines once the style is ready. Fitting to bounds
+  /// (rather than a fixed zoom) keeps the framing correct across screen sizes
+  /// and after rotation.
+  Future<void> _fitPhilippines() async {
+    await _controller?.moveCamera(
+      CameraUpdate.newLatLngBounds(
+        kPhBounds,
+        left: 24,
+        top: 24,
+        right: 24,
+        bottom: 24,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -21,6 +42,8 @@ class _MapScreenState extends State<MapScreen> {
           target: kPhCenter,
           zoom: kPhInitialZoom,
         ),
+        onMapCreated: _onMapCreated,
+        onStyleLoadedCallback: _fitPhilippines,
         // All gestures enabled (PRD req. 5).
         scrollGesturesEnabled: true,
         zoomGesturesEnabled: true,
