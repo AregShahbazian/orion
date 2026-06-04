@@ -1,0 +1,7 @@
+# Template for android/key.properties (which is GITIGNORED — never commit the real one).
+# Copy this to `key.properties` and fill in your keystore passwords.
+# The keystore itself lives OUTSIDE the repo (see ~/.keystores/orion/).
+storePassword=your-keystore-password
+keyPassword=your-key-password
+keyAlias=upload
+storeFile=/home/areg/.keystores/orion/upload-keystore.jks
