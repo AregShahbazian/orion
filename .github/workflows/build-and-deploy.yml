@@ -1,0 +1,96 @@
+# Build Orion (web + APK) on push and deploy to the VPS over SSH.
+#
+# Two independent jobs — apk failing never blocks web (same philosophy as the old
+# .devbox build). Each job builds AND deploys its own artifact, so there's no shared
+# "deploy" job that a single failure could take down.
+#
+# Required GitHub config (Settings → Secrets and variables → Actions):
+#   Secret  VPS_SSH_KEY   private half of the deploy key (the public half goes in the
+#                         VPS user's ~/.ssh/authorized_keys)
+#   Variable VPS_HOST     VPS IP or hostname
+#   Variable VPS_USER     SSH user (e.g. root)
+#   Variable VPS_PORT     SSH port (e.g. 22)
+# Deploy target on the VPS: /root/orion/site/{web,apk}/  (served by Caddy — see deploy/).
+
+name: build-and-deploy
+
+on:
+  push:
+    branches: [phase-1-map]
+  workflow_dispatch: {}
+
+concurrency:
+  group: build-and-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build web (release)
+        # Served under /web/, so base-href must match (else assets 404 → blank page).
+        run: |
+          flutter pub get
+          flutter build web --release --base-href /web/
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${{ vars.VPS_PORT }}" -H "${{ vars.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy web → VPS
+        # Mirror (--delete): web is fully replaced each build.
+        run: |
+          ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" 'mkdir -p /root/orion/site/web'
+          rsync -az --delete -e "ssh -p ${{ vars.VPS_PORT }}" \
+            build/web/ "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}:/root/orion/site/web/"
+
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build APK (release)
+        # ubuntu-latest ships the Android SDK; flutter build apk uses it.
+        run: |
+          flutter pub get
+          flutter build apk --release
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${{ vars.VPS_PORT }}" -H "${{ vars.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy APK → VPS (versioned, accumulate, regenerate index)
+        # Versioned name app-<sha7>-<YYMMDD-HHMMSS>.apk; old builds are kept. The index is
+        # regenerated ON the VPS so it reflects every accumulated APK, not just this one.
+        run: |
+          SHA="$(git rev-parse --short=7 HEAD)"
+          STAMP="$(date +%y%m%d-%H%M%S)"
+          NAME="app-$SHA-$STAMP.apk"
+          ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" 'mkdir -p /root/orion/site/apk'
+          scp -P "${{ vars.VPS_PORT }}" build/app/outputs/flutter-apk/app-release.apk \
+            "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}:/root/orion/site/apk/$NAME"
+          ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" \
+            'bash /root/orion/gen-apk-index.sh'
