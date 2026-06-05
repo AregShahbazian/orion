@@ -1,0 +1,7 @@
+# Copy to `deploy.conf` (gitignored — contains the root PASSWORD; never commit it).
+# Read by 01-provision-vps.sh to reach the VPS over SSH.
+
+SERVER_IP=""             # the VPS IP
+SERVER_USER="root"       # initial login user
+SERVER_PASSWORD=""       # the root password set at provisioning
+SERVER_SSH_PORT="22"     # host SSH port (optional; defaults to 22)
