@@ -11,6 +11,11 @@ SERVE_DIR="${SERVE_DIR:?SERVE_DIR not set by devbox}"
 log() { printf '\033[1;34m[orion/build-apk]\033[0m %s\n' "$*"; }
 command -v flutter >/dev/null 2>&1 || { echo "flutter not on PATH — toolchain provision didn't run?"; exit 1; }
 
+log "fetching dependencies (flutter pub get)"
+# Self-heals the pub cache — a container recreate (down/up) or an interrupted build can
+# leave packages missing, which the build then fails on.
+( cd "$PROJECT_DIR" && flutter pub get )
+
 log "building release APK (slow on first run — Gradle/Android deps)"
 ( cd "$PROJECT_DIR" && flutter build apk --release )
 

@@ -11,6 +11,11 @@ SERVE_DIR="${SERVE_DIR:?SERVE_DIR not set by devbox}"
 log() { printf '\033[1;34m[orion/build-web]\033[0m %s\n' "$*"; }
 command -v flutter >/dev/null 2>&1 || { echo "flutter not on PATH — toolchain provision didn't run?"; exit 1; }
 
+log "fetching dependencies (flutter pub get)"
+# Self-heals the pub cache — a container recreate (down/up) or an interrupted build can
+# leave packages missing, which dart2js then fails on (e.g. vector_math not found).
+( cd "$PROJECT_DIR" && flutter pub get )
+
 log "building Flutter web (release)"
 # Served under /web/, so the base href must match (else assets 404 → blank page).
 ( cd "$PROJECT_DIR" && flutter build web --release --base-href /web/ )
