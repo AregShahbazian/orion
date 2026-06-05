@@ -131,5 +131,6 @@ its config.
 - **Cleaning old APKs:** they accumulate in `site/apk/`. Prune occasionally, e.g.
   `ls -t /root/orion/site/apk/*.apk | tail -n +11 | xargs -r rm` then
   `bash /root/orion/gen-apk-index.sh` to refresh the index.
-- **Switching off devbox builds:** the old `.devbox/build-*.sh` + `serve` path still works
-  but is now redundant for publishing. Keep devbox for the Claude Code environment only.
+- **History:** publishing used to run on a `devbox` container via `.devbox/build-*.sh` +
+  a `serve` script. That's been retired — this Actions → Caddy pipeline replaces it, and
+  the separate `claude-vps` box covers the Claude Code dev environment.
