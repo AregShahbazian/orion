@@ -57,16 +57,21 @@ EOF
 chown -R dev:dev "$TC" 2>/dev/null || true
 
 # --- SDK packages + licenses + flutter precache (as dev) ---
-if [ ! -d "$ANDROID_HOME/platform-tools" ] || [ ! -x "$FLUTTER_DIR/bin/cache/dart-sdk/bin/dart" ]; then
+# Guard on ALL THREE package dirs (not just platform-tools) so a partial/failed install
+# self-heals on the next start instead of being skipped. Errors are NOT hidden — a silent
+# >/dev/null here once masked unaccepted licenses and left the SDK half-installed.
+if [ ! -d "$ANDROID_HOME/platform-tools" ] \
+   || [ ! -d "$ANDROID_HOME/platforms/$ANDROID_PLATFORM" ] \
+   || [ ! -d "$ANDROID_HOME/build-tools/$ANDROID_BUILDTOOLS" ]; then
   log "accepting Android licenses + installing platform-tools / $ANDROID_PLATFORM / build-tools $ANDROID_BUILDTOOLS"
   su dev -c "
+    set -e
     export JAVA_HOME='$JDK_DIR' ANDROID_HOME='$ANDROID_HOME'
     export PATH='$JDK_DIR/bin:$FLUTTER_DIR/bin:$ANDROID_HOME/cmdline-tools/latest/bin:\$PATH'
-    yes | sdkmanager --licenses >/dev/null 2>&1 || true
-    sdkmanager 'platform-tools' 'platforms;$ANDROID_PLATFORM' 'build-tools;$ANDROID_BUILDTOOLS' >/dev/null
+    yes | sdkmanager --licenses           # accept; failures here surface (don't mask them)
+    sdkmanager 'platform-tools' 'platforms;$ANDROID_PLATFORM' 'build-tools;$ANDROID_BUILDTOOLS'
     yes | flutter doctor --android-licenses >/dev/null 2>&1 || true
     flutter precache --no-ios >/dev/null 2>&1 || true
-    flutter --version
-  "
+  " || { echo "[orion/provision] Android SDK install failed (licenses not accepted, or download/network) — see output above. Web builds still work; re-run 'up' to retry the APK toolchain." >&2; exit 1; }
 fi
 log "orion toolchain ready under $TC"
