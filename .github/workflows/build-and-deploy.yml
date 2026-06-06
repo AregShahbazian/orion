@@ -70,6 +70,8 @@ jobs:
 
       - name: Deploy web → VPS (and regenerate the root landing page)
         run: |
+          # Marker read by gen-landing-index.sh to show the deployed commit per landing row.
+          echo "${GITHUB_SHA:0:7}" > build/web/.orion-sha
           ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" \
             'mkdir -p ${{ steps.slot.outputs.dir }}'
           rsync -az ${{ steps.slot.outputs.delete }} -e "ssh -p ${{ vars.VPS_PORT }}" \
