@@ -37,6 +37,11 @@ class _MapScreenState extends State<MapScreen> {
   // (onCameraTrackingDismissed).
   MyLocationTrackingMode _trackingMode = MyLocationTrackingMode.none;
 
+  // True while _resetOrientation is orchestrating its exit-follow → reset →
+  // re-enter-follow sequence, so the tracking-dismissed callback it provokes
+  // doesn't knock us to off.
+  bool _suppressTrackingDismiss = false;
+
   // Drive the compass/reset-orientation button without rebuilding the map.
   // _bearing rotates the needle; _oriented (bearing≠0 || tilt≠0) shows the button.
   final ValueNotifier<double> _bearing = ValueNotifier(0);
@@ -105,33 +110,40 @@ class _MapScreenState extends State<MapScreen> {
     _oriented.value = pos.bearing.abs() > 0.5 || pos.tilt > 0.5;
   }
 
-  /// Restore the default orientation — but never drop the follow.
+  /// Reset rotation/tilt to the default north-up, flat view — always animating
+  /// the camera so the reset is real — while **never** dropping the follow.
   ///
   /// A programmatic camera move makes the native SDK dismiss tracking, so when
-  /// following we re-assert the tracking mode instead of animating the camera:
-  /// - **follow+heading** → step down to plain **follow** (drops the heading
-  ///   rotation, keeps centering on the user).
-  /// - **follow** → re-assert follow, snapping back to north-up/flat, still
-  ///   following.
-  /// - **off** → animate bearing/tilt back to 0 (the only case that touches the
-  ///   camera directly).
-  void _resetOrientation() {
-    switch (_trackingMode) {
-      case MyLocationTrackingMode.trackingCompass:
-      case MyLocationTrackingMode.tracking:
-        // Following: re-assert plain follow → snaps to north-up/flat (and drops
-        // the heading rotation if any) without ending the follow.
-        _setTrackingMode(MyLocationTrackingMode.tracking);
-        return;
-      default:
-        final pos = _controller?.cameraPosition;
-        if (pos == null) return;
-        _controller!.animateCamera(
-          CameraUpdate.newCameraPosition(
-            CameraPosition(
-                target: pos.target, zoom: pos.zoom, bearing: 0, tilt: 0),
-          ),
-        );
+  /// following we orchestrate it explicitly: leave follow, animate the reset on
+  /// a free camera, then re-enter plain follow (collapsing follow+heading to
+  /// plain follow so the camera doesn't snap back to the device heading). The
+  /// dismissals this provokes are guarded by [_suppressTrackingDismiss].
+  Future<void> _resetOrientation() async {
+    final controller = _controller;
+    final pos = controller?.cameraPosition;
+    if (controller == null || pos == null) return;
+
+    final wasFollowing = _trackingMode != MyLocationTrackingMode.none;
+    final reset = CameraUpdate.newCameraPosition(
+      CameraPosition(target: pos.target, zoom: pos.zoom, bearing: 0, tilt: 0),
+    );
+
+    if (!wasFollowing) {
+      await controller.animateCamera(reset);
+      return;
+    }
+
+    _suppressTrackingDismiss = true;
+    try {
+      await controller.updateMyLocationTrackingMode(MyLocationTrackingMode.none);
+      await controller.animateCamera(reset);
+      await controller
+          .updateMyLocationTrackingMode(MyLocationTrackingMode.tracking);
+      if (mounted) {
+        setState(() => _trackingMode = MyLocationTrackingMode.tracking);
+      }
+    } finally {
+      _suppressTrackingDismiss = false;
     }
   }
 
@@ -207,9 +219,11 @@ class _MapScreenState extends State<MapScreen> {
     if (mounted) setState(() => _trackingMode = mode);
   }
 
-  /// MapLibre fires this when the user pans/zooms while following — drop back to
-  /// the free (none) state so the FAB reflects reality.
+  /// MapLibre fires this when a camera move overrides follow. Ignore the ones our
+  /// own reset sequence provokes ([_suppressTrackingDismiss]); otherwise the user
+  /// panned/zoomed by hand → drop to the free (none) state.
   void _onCameraTrackingDismissed() {
+    if (_suppressTrackingDismiss) return;
     if (mounted && _trackingMode != MyLocationTrackingMode.none) {
       setState(() => _trackingMode = MyLocationTrackingMode.none);
     }
