@@ -41,6 +41,12 @@ class LocationController extends ChangeNotifier {
 
   bool get isFollowing => _trackingMode != MyLocationTrackingMode.none;
 
+  /// Render mode for the dot. `compass` adds the heading cone (device compass);
+  /// gated on [enabled] because the plugin asserts a non-`normal` render mode
+  /// requires `myLocationEnabled`. Web ignores it and draws a plain dot.
+  MyLocationRenderMode get renderMode =>
+      _enabled ? MyLocationRenderMode.compass : MyLocationRenderMode.normal;
+
   // True while [resetOrientation] orchestrates its exit-follow → reset →
   // re-enter sequence, so the tracking-dismissed callback that the programmatic
   // camera move provokes doesn't knock us back to off.

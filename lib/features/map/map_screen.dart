@@ -162,10 +162,12 @@ class _MapScreenState extends State<MapScreen> {
             zoomGesturesEnabled: true,
             rotateGesturesEnabled: true,
             tiltGesturesEnabled: true,
-            // "My location" blue dot + follow, owned by _location. Plain dot —
-            // no heading cone yet (heading-arrow task).
+            // "My location" blue dot + follow, owned by _location. Render mode
+            // `compass` (via _location.renderMode) adds the heading cone on
+            // native; web falls back to a plain dot. The accuracy ring is drawn
+            // by the plugin by default (metric — visible at street zoom).
             myLocationEnabled: _location.enabled,
-            myLocationRenderMode: MyLocationRenderMode.normal,
+            myLocationRenderMode: _location.renderMode,
             myLocationTrackingMode: _location.trackingMode,
             // Use high-accuracy GPS at a 1s interval. The default `balanced`
             // priority lets Android throttle a stationary device to ~1 fix/30s,
