@@ -76,6 +76,9 @@ class _MapScreenState extends State<MapScreen> {
             ),
             onMapCreated: _onMapCreated,
             onStyleLoadedCallback: _fitPhilippines,
+            // Avoid a blank flash when the native GL surface is recreated on
+            // resume from background (Android lifecycle).
+            translucentTextureSurface: true,
             // All gestures enabled (PRD req. 5).
             scrollGesturesEnabled: true,
             zoomGesturesEnabled: true,
