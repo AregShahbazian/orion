@@ -68,12 +68,16 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -p "${{ vars.VPS_PORT }}" -H "${{ vars.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Deploy web → VPS
+      - name: Deploy web → VPS (and regenerate the root landing page)
         run: |
           ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" \
             'mkdir -p ${{ steps.slot.outputs.dir }}'
           rsync -az ${{ steps.slot.outputs.delete }} -e "ssh -p ${{ vars.VPS_PORT }}" \
             build/web/ "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}:${{ steps.slot.outputs.dir }}/"
+          scp -P "${{ vars.VPS_PORT }}" deploy/gen-landing-index.sh \
+            "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}:/root/orion/gen-landing-index.sh"
+          ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" \
+            "bash /root/orion/gen-landing-index.sh /root/orion/site"
 
   apk:
     runs-on: ubuntu-latest
@@ -131,5 +135,7 @@ jobs:
             "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}:/root/orion/gen-apk-index.sh"
           scp -P "${{ vars.VPS_PORT }}" build/app/outputs/flutter-apk/app-release.apk \
             "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}:$DIR/$NAME"
+          scp -P "${{ vars.VPS_PORT }}" deploy/gen-landing-index.sh \
+            "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}:/root/orion/gen-landing-index.sh"
           ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" \
-            "ls -t $DIR/*.apk 2>/dev/null | tail -n +\$(( $KEEP + 1 )) | xargs -r rm -f && bash /root/orion/gen-apk-index.sh $DIR"
+            "ls -t $DIR/*.apk 2>/dev/null | tail -n +\$(( $KEEP + 1 )) | xargs -r rm -f && bash /root/orion/gen-apk-index.sh $DIR && bash /root/orion/gen-landing-index.sh /root/orion/site"

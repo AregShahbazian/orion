@@ -19,6 +19,5 @@
 	@apk path *.apk
 	header @apk Content-Type application/vnd.android.package-archive
 
-	# Bare / -> the web app.
-	redir / /web/ 302
+	# Bare / -> the generated landing page (site/index.html) listing every release.
 }
