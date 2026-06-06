@@ -293,6 +293,15 @@ class _MapScreenState extends State<MapScreen> {
             myLocationEnabled: _locationEnabled,
             myLocationRenderMode: MyLocationRenderMode.normal,
             myLocationTrackingMode: _trackingMode,
+            // Use high-accuracy GPS at a 1s interval. The default `balanced`
+            // priority lets Android throttle a stationary device to ~1 fix/30s,
+            // which collides with MapLibre's ~30s stale timeout and leaves the
+            // dot grey most of the time. GPS priority honors the interval, so
+            // fixes stay frequent and the dot stays "fresh" (blue).
+            locationEnginePlatforms: const LocationEnginePlatforms.android(
+              enableHighAccuracy: true,
+              interval: 1000,
+            ),
           ),
 
           // Single safe-area-inset layer for ALL Flutter HUD. Add future buttons
