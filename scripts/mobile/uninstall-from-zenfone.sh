@@ -5,7 +5,7 @@
 # machine (`adb devices` should show it as "device", not "unauthorized").
 #
 # Override the defaults if needed:
-#   PACKAGE=com.other.app DEVICE=SERIAL ./scripts/uninstall-from-zenfone.sh
+#   PACKAGE=com.other.app DEVICE=SERIAL ./scripts/mobile/uninstall-from-zenfone.sh
 set -euo pipefail
 
 PACKAGE="${PACKAGE:-com.mby4m.orion}"

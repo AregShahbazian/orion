@@ -1,0 +1,31 @@
+# scripts/
+
+Dev helper scripts, grouped by target. Run from the repo root.
+
+## `web/` — browser dev loop
+- **`run.sh`** — `flutter run -d chrome` (the primary dev loop). Forwards extra args.
+
+Driving interactions on web needs no script: the console bridge exposes
+`window.orion` in the browser DevTools console —
+`await orion.dispatch('hud.followMe.tap')`, `orion.logEvents(true)`,
+`orion.dump()`, `orion.ids`.
+
+## `mobile/` — on-device (Android) loop + remote control
+- **`run.sh`** — `flutter run` with native/GPU log noise filtered out. Also records
+  the VM Service URI to `.dart_tool/orion_vmservice` on each launch so `orion.sh`
+  can find it with no copy-paste.
+- **`orion.sh`** — drive the running app's interactions from your laptop, the
+  native counterpart to `window.orion`. Reads the recorded URI automatically:
+  ```
+  ./scripts/mobile/orion.sh dump
+  ./scripts/mobile/orion.sh logEvents on=true
+  ./scripts/mobile/orion.sh dispatch id=map.zoom.changed payload='{"zoom":12}'
+  ./scripts/mobile/orion.sh ids
+  ```
+  It talks to the app's `ext.orion.*` VM service extensions
+  (`lib/core/interaction/console_bridge_io.dart`) over the VM Service via
+  `tool/orion_remote.dart`. Everything is localhost-forwarded, so it keeps working
+  across Wi-Fi/LAN switches. Service extensions exist only in debug/profile builds.
+- **`uninstall-from-zenfone.sh`** — adb uninstall from the test Zenfone.
+
+Screenshots (`*.png`) dropped here are gitignored.
