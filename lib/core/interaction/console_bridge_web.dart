@@ -28,7 +28,6 @@ void signalMapReady() {
 /// await orion.dispatch('map.zoom.changed', { zoom: 12 })   // resolves when the move settles
 /// orion.ids                         // → the valid interaction ids
 /// orion.logEvents(true)             // start echoing each interaction to the log
-/// orion.demo()                      // run the built-in Manila demo flow
 /// ```
 ///
 /// [dispatch] returns a Promise that resolves when the handler finishes (e.g. a
@@ -77,43 +76,5 @@ void installInteractionConsoleBridge(InteractionController bus) {
 
   api.setProperty('ready'.toJS, ready().toJS);
 
-  // Built-in demo flow: `orion.demo()` (optional pause in ms between steps).
-  // Waits for the map, zooms in on Manila, pans a short walk, then focuses the
-  // current location. Returns a Promise resolving when the flow finishes.
-  api.setProperty('demo'.toJS, (([JSNumber? pauseMs]) {
-    final pause = Duration(milliseconds: pauseMs?.toDartInt ?? 800);
-    return _runDemo(bus, pause).toJS;
-  }).toJS);
-
   web.window.setProperty('orion'.toJS, api);
-}
-
-/// Manila and a short Metro-Manila pan walk for the [_runDemo] flow.
-const Map<String, double> _manila = {'lat': 14.5995, 'lng': 121.0219};
-const List<Map<String, double>> _walk = [
-  {'lat': 14.5610, 'lng': 120.9947}, // Rizal Park
-  {'lat': 14.5764, 'lng': 121.0851}, // Pasig
-  {'lat': 14.6537, 'lng': 121.0687}, // Quezon City
-  {'lat': 14.5547, 'lng': 121.0244}, // Makati
-];
-
-/// The built-in demo: each step awaits the previous, so timing follows the real
-/// camera animations; [pause] just adds breathing room so the walk is watchable.
-Future<JSAny?> _runDemo(InteractionController bus, Duration pause) async {
-  Future<void> go(String id, [Map<String, Object?>? payload]) =>
-      bus.dispatch(id, origin: InteractionOrigin.programmatic, payload: payload);
-
-  await _mapReady.future;
-
-  await go(InteractionIds.mapScroll, _manila);
-  await go(InteractionIds.mapZoom, {'zoom': 12.0});
-  await Future<void>.delayed(pause);
-
-  for (final p in _walk) {
-    await go(InteractionIds.mapScroll, p);
-    await Future<void>.delayed(pause);
-  }
-
-  await go(InteractionIds.followMeTap);
-  return null;
 }
