@@ -52,4 +52,13 @@ void main() {
       throwsStateError,
     );
   });
+
+  test('observe records without a handler (monitoring-only path)', () {
+    // No handler registered for mapZoom — observe must not throw, just record.
+    bus.observe(InteractionIds.mapZoom, payload: {'zoom': 12.0});
+    final log = bus.recent();
+    expect(log.single.id, InteractionIds.mapZoom);
+    expect(log.single.origin, InteractionOrigin.user);
+    expect(log.single.payload, {'zoom': 12.0});
+  });
 }

@@ -46,6 +46,13 @@ class _MapScreenState extends State<MapScreen> {
   final ValueNotifier<double> _bearing = ValueNotifier(0);
   final ValueNotifier<bool> _oriented = ValueNotifier(false);
 
+  // Gesture capture: the camera at the last settle, diffed against the next one
+  // to classify what the user changed. _programmaticCamera suppresses the capture
+  // for camera moves we initiate ourselves (console dispatch, fit-to-bounds), so
+  // they aren't misrecorded as user gestures.
+  CameraPosition? _lastIdleCamera;
+  bool _programmaticCamera = false;
+
   @override
   void initState() {
     super.initState();
@@ -59,7 +66,31 @@ class _MapScreenState extends State<MapScreen> {
       ..register(
           InteractionIds.resetOrientationTap, (_) => _location.resetOrientation())
       ..register(InteractionIds.mapTrackingDismissed,
-          (_) => _location.onCameraTrackingDismissed());
+          (_) => _location.onCameraTrackingDismissed())
+      // Programmatic camera gestures: drive the map to a target value. Captured
+      // user gestures (observe, below) re-use the same ids with origin=user.
+      ..register(InteractionIds.mapZoom,
+          (p) => _moveCamera(CameraUpdate.zoomTo(_num(p, 'zoom'))))
+      ..register(
+          InteractionIds.mapScroll,
+          (p) => _moveCamera(CameraUpdate.newLatLng(
+              LatLng(_num(p, 'lat'), _num(p, 'lng')))))
+      ..register(InteractionIds.mapRotate,
+          (p) => _moveCamera(CameraUpdate.bearingTo(_num(p, 'bearing'))))
+      ..register(InteractionIds.mapTilt,
+          (p) => _moveCamera(CameraUpdate.tiltTo(_num(p, 'tilt'))));
+  }
+
+  /// Read a numeric payload field, tolerating the `num` that arrives from the
+  /// JS console bridge (and the `int` a hand-written dispatch might pass).
+  static double _num(Map<String, Object?>? p, String key) =>
+      (p?[key] as num).toDouble();
+
+  /// Move the camera on our own initiative. The flag makes the resulting idle
+  /// skip gesture capture so we don't echo it back as a user interaction.
+  Future<void> _moveCamera(CameraUpdate update) async {
+    _programmaticCamera = true;
+    await _controller?.animateCamera(update);
   }
 
   Future<void> _initConnectivity() async {
@@ -83,7 +114,11 @@ class _MapScreenState extends State<MapScreen> {
     _interactions
       ..unregister(InteractionIds.followMeTap)
       ..unregister(InteractionIds.resetOrientationTap)
-      ..unregister(InteractionIds.mapTrackingDismissed);
+      ..unregister(InteractionIds.mapTrackingDismissed)
+      ..unregister(InteractionIds.mapZoom)
+      ..unregister(InteractionIds.mapScroll)
+      ..unregister(InteractionIds.mapRotate)
+      ..unregister(InteractionIds.mapTilt);
     _controller?.removeListener(_onCameraChanged);
     _location.removeListener(_onLocationChanged);
     _location.dispose();
@@ -105,6 +140,40 @@ class _MapScreenState extends State<MapScreen> {
     if (pos == null) return;
     _bearing.value = pos.bearing;
     _oriented.value = pos.bearing.abs() > 0.5 || pos.tilt > 0.5;
+  }
+
+  /// Classify the net camera change since the last settle and record each
+  /// component the user moved. Skipped for camera moves we drive ourselves and
+  /// while following (the location dot drives the camera then, not the user).
+  void _onCameraIdle() {
+    final pos = _controller?.cameraPosition;
+    if (pos == null) return;
+    final last = _lastIdleCamera;
+    _lastIdleCamera = pos;
+
+    if (_programmaticCamera) {
+      _programmaticCamera = false;
+      return;
+    }
+    if (_location.trackingMode != MyLocationTrackingMode.none) return;
+    if (last == null) return;
+
+    final t = pos.target, lt = last.target;
+    if ((pos.zoom - last.zoom).abs() > 0.01) {
+      _interactions.observe(InteractionIds.mapZoom, payload: {'zoom': pos.zoom});
+    }
+    if ((t.latitude - lt.latitude).abs() > 1e-5 ||
+        (t.longitude - lt.longitude).abs() > 1e-5) {
+      _interactions.observe(InteractionIds.mapScroll,
+          payload: {'lat': t.latitude, 'lng': t.longitude});
+    }
+    if ((pos.bearing - last.bearing).abs() > 0.5) {
+      _interactions
+          .observe(InteractionIds.mapRotate, payload: {'bearing': pos.bearing});
+    }
+    if ((pos.tilt - last.tilt).abs() > 0.5) {
+      _interactions.observe(InteractionIds.mapTilt, payload: {'tilt': pos.tilt});
+    }
   }
 
   /// Tap the location FAB; show the Settings recovery SnackBar if the user has
@@ -175,6 +244,9 @@ class _MapScreenState extends State<MapScreen> {
             // User panned/zoomed while following → exit follow mode.
             onCameraTrackingDismissed: () =>
                 _interactions.dispatch(InteractionIds.mapTrackingDismissed),
+            // Capture the net gesture once the camera settles (one record per
+            // gesture, not per frame).
+            onCameraIdle: _onCameraIdle,
             // Avoid a blank flash when the native GL surface is recreated on
             // resume from background (Android lifecycle).
             translucentTextureSurface: true,

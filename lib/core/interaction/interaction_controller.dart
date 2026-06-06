@@ -71,6 +71,25 @@ class InteractionController {
     return await handler(payload);
   }
 
+  /// Record an interaction the app *observed* but did not itself execute — the
+  /// monitoring half of the bus. Used for native gestures (map zoom/pan/rotate)
+  /// that MapLibre performs before we hear about them: there's nothing to run, so
+  /// no handler is invoked. [dispatch] the same id (origin=programmatic) to make
+  /// it happen on demand.
+  void observe(
+    String id, {
+    Map<String, Object?>? payload,
+    InteractionOrigin origin = InteractionOrigin.user,
+  }) {
+    assert(InteractionIds.all.contains(id), 'Unknown interaction id: $id');
+    _record(InteractionRecord(
+      id: id,
+      origin: origin,
+      at: DateTime.now(),
+      payload: payload,
+    ));
+  }
+
   /// The buffered records, oldest first.
   List<InteractionRecord> recent() => List.unmodifiable(_log);
 
