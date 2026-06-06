@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:math' show Point;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'compass_button.dart';
 import 'map_constants.dart';
@@ -23,6 +25,11 @@ class _MapScreenState extends State<MapScreen> {
   bool _isOnline = true;
   StreamSubscription<List<ConnectivityResult>>? _connSub;
 
+  // Flipped on once foreground location permission is granted (native) or
+  // unconditionally on web. Drives the MapLibre blue dot via [MapLibreMap]'s
+  // myLocationEnabled — see _initLocation.
+  bool _locationEnabled = false;
+
   // Drive the compass/reset-orientation button without rebuilding the map.
   // _bearing rotates the needle; _oriented (bearing≠0 || tilt≠0) shows the button.
   final ValueNotifier<double> _bearing = ValueNotifier(0);
@@ -32,6 +39,29 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     _initConnectivity();
+    _initLocation();
+  }
+
+  /// Enable the blue "my location" dot.
+  ///
+  /// Native (Android/iOS): request foreground permission once. Granted → enable
+  /// the dot; denied → leave it off (dot simply absent — no crash, no nagging).
+  /// We request *before* enabling so the native SDK never turns on the location
+  /// layer without a grant.
+  ///
+  /// Web: `permission_handler` has no real implementation; MapLibre's geolocate
+  /// control handles the browser prompt itself, so just enable it (the dot shows
+  /// after the user taps the locate button). Auto-follow on web comes with the
+  /// later Follow-Me task, which legitimately flips the tracking mode.
+  Future<void> _initLocation() async {
+    if (kIsWeb) {
+      if (mounted) setState(() => _locationEnabled = true);
+      return;
+    }
+    final status = await Permission.locationWhenInUse.request();
+    if (status.isGranted && mounted) {
+      setState(() => _locationEnabled = true);
+    }
   }
 
   Future<void> _initConnectivity() async {
@@ -134,8 +164,12 @@ class _MapScreenState extends State<MapScreen> {
             zoomGesturesEnabled: true,
             rotateGesturesEnabled: true,
             tiltGesturesEnabled: true,
-            // Zero-permission Phase 1 — no location.
-            myLocationEnabled: false,
+            // "My location" blue dot. Enabled once permission is granted (native)
+            // or on web (_initLocation). Plain dot — no heading cone (heading-arrow
+            // task) and no camera follow (follow-me task).
+            myLocationEnabled: _locationEnabled,
+            myLocationRenderMode: MyLocationRenderMode.normal,
+            myLocationTrackingMode: MyLocationTrackingMode.none,
           ),
 
           // Single safe-area-inset layer for ALL Flutter HUD. Add future buttons

@@ -39,6 +39,9 @@ dependencies:
   maplibre_gl: ^0.26.1
   # Connectivity changes for the offline indicator
   connectivity_plus: ^6.1.0
+  # Foreground location permission for the "my location" blue dot (native only;
+  # web uses the browser geolocation prompt via MapLibre's geolocate control)
+  permission_handler: ^11.4.0
 
 dev_dependencies:
   flutter_test:
