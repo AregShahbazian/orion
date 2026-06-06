@@ -161,8 +161,9 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
 
+    final previous = _trackingMode;
     final MyLocationTrackingMode next;
-    switch (_trackingMode) {
+    switch (previous) {
       case MyLocationTrackingMode.none:
         next = MyLocationTrackingMode.tracking;
         break;
@@ -173,6 +174,13 @@ class _MapScreenState extends State<MapScreen> {
         next = MyLocationTrackingMode.none;
     }
     await _setTrackingMode(next);
+
+    // Leaving follow+heading rotates the camera to the device heading; turning
+    // off should restore the default north-up, flat view (same as the reset button).
+    if (previous == MyLocationTrackingMode.trackingCompass &&
+        next == MyLocationTrackingMode.none) {
+      _resetOrientation();
+    }
   }
 
   Future<void> _setTrackingMode(MyLocationTrackingMode mode) async {
