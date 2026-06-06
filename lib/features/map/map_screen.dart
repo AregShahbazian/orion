@@ -105,15 +105,34 @@ class _MapScreenState extends State<MapScreen> {
     _oriented.value = pos.bearing.abs() > 0.5 || pos.tilt > 0.5;
   }
 
-  /// Restore the default north-up, flat view (bearing 0, tilt 0).
+  /// Restore the default orientation — but never drop the follow.
+  ///
+  /// A programmatic camera move makes the native SDK dismiss tracking, so when
+  /// following we re-assert the tracking mode instead of animating the camera:
+  /// - **follow+heading** → step down to plain **follow** (drops the heading
+  ///   rotation, keeps centering on the user).
+  /// - **follow** → re-assert follow, snapping back to north-up/flat, still
+  ///   following.
+  /// - **off** → animate bearing/tilt back to 0 (the only case that touches the
+  ///   camera directly).
   void _resetOrientation() {
-    final pos = _controller?.cameraPosition;
-    if (pos == null) return;
-    _controller!.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(target: pos.target, zoom: pos.zoom, bearing: 0, tilt: 0),
-      ),
-    );
+    switch (_trackingMode) {
+      case MyLocationTrackingMode.trackingCompass:
+      case MyLocationTrackingMode.tracking:
+        // Following: re-assert plain follow → snaps to north-up/flat (and drops
+        // the heading rotation if any) without ending the follow.
+        _setTrackingMode(MyLocationTrackingMode.tracking);
+        return;
+      default:
+        final pos = _controller?.cameraPosition;
+        if (pos == null) return;
+        _controller!.animateCamera(
+          CameraUpdate.newCameraPosition(
+            CameraPosition(
+                target: pos.target, zoom: pos.zoom, bearing: 0, tilt: 0),
+          ),
+        );
+    }
   }
 
   // ── Location follow (FAB) ──
