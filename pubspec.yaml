@@ -42,6 +42,9 @@ dependencies:
   # Foreground location permission for the "my location" blue dot (native only;
   # web uses the browser geolocation prompt via MapLibre's geolocate control)
   permission_handler: ^11.4.0
+  # Browser console interop for structured dev logging (web only; native uses
+  # dart:developer). See lib/core/log/dev_log.dart.
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:

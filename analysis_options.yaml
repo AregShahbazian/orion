@@ -9,6 +9,12 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  errors:
+    # All logging must go through devLog() (lib/core/log/) — raw print bypasses
+    # the structured, per-platform inspectable path, so it's a build error.
+    avoid_print: error
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`
