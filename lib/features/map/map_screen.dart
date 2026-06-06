@@ -2,14 +2,19 @@ import 'dart:async';
 import 'dart:math' show Point;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import 'compass_button.dart';
-import 'location_service.dart';
+import 'location_controller.dart';
+import 'location_fab.dart';
 import 'map_constants.dart';
 import 'offline_indicator.dart';
+
+/// Shown when location is permanently denied and the user taps the FAB. Kept as
+/// a single constant for now; moves into l10n with the language-support phase.
+const String _kLocationDeniedMessage =
+    'Location permission is off. Enable it in Settings.';
 
 /// Phase 1: the whole app — a single full-screen map. No other UI.
 class MapScreen extends StatefulWidget {
@@ -25,22 +30,9 @@ class _MapScreenState extends State<MapScreen> {
   bool _isOnline = true;
   StreamSubscription<List<ConnectivityResult>>? _connSub;
 
-  final LocationService _location = LocationService();
-
-  // Flipped on once foreground location permission is granted (native) or
-  // unconditionally on web. Drives the MapLibre blue dot via [MapLibreMap]'s
-  // myLocationEnabled — see _initLocation.
-  bool _locationEnabled = false;
-
-  // Camera-follow mode, cycled by the location FAB: none → tracking →
-  // trackingCompass → none. Reset to none if the user pans manually
-  // (onCameraTrackingDismissed).
-  MyLocationTrackingMode _trackingMode = MyLocationTrackingMode.none;
-
-  // True while _resetOrientation is orchestrating its exit-follow → reset →
-  // re-enter-follow sequence, so the tracking-dismissed callback it provokes
-  // doesn't knock us to off.
-  bool _suppressTrackingDismiss = false;
+  // Owns the my-location dot + follow-me state machine. We rebuild the map (and
+  // FAB) whenever it changes so its enabled/trackingMode props stay in sync.
+  final LocationController _location = LocationController();
 
   // Drive the compass/reset-orientation button without rebuilding the map.
   // _bearing rotates the needle; _oriented (bearing≠0 || tilt≠0) shows the button.
@@ -51,29 +43,8 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     _initConnectivity();
-    _initLocation();
-  }
-
-  /// Enable the blue "my location" dot.
-  ///
-  /// Native (Android/iOS): request foreground permission once. Granted → enable
-  /// the dot; denied → leave it off (dot simply absent — no crash, no nagging).
-  /// We request *before* enabling so the native SDK never turns on the location
-  /// layer without a grant.
-  ///
-  /// Web: `permission_handler` has no real implementation; MapLibre's geolocate
-  /// control handles the browser prompt itself, so just enable it (the dot shows
-  /// after the user taps the locate button). Auto-follow on web comes with the
-  /// later Follow-Me task, which legitimately flips the tracking mode.
-  Future<void> _initLocation() async {
-    if (kIsWeb) {
-      if (mounted) setState(() => _locationEnabled = true);
-      return;
-    }
-    final granted = await _location.requestPermission();
-    if (granted && mounted) {
-      setState(() => _locationEnabled = true);
-    }
+    _location.addListener(_onLocationChanged);
+    _location.init();
   }
 
   Future<void> _initConnectivity() async {
@@ -87,10 +58,16 @@ class _MapScreenState extends State<MapScreen> {
   bool _online(List<ConnectivityResult> results) =>
       !results.contains(ConnectivityResult.none);
 
+  void _onLocationChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     _connSub?.cancel();
     _controller?.removeListener(_onCameraChanged);
+    _location.removeListener(_onLocationChanged);
+    _location.dispose();
     _bearing.dispose();
     _oriented.dispose();
     super.dispose();
@@ -98,6 +75,7 @@ class _MapScreenState extends State<MapScreen> {
 
   void _onMapCreated(MapLibreMapController controller) {
     _controller = controller;
+    _location.attach(controller);
     controller.addListener(_onCameraChanged);
   }
 
@@ -110,123 +88,20 @@ class _MapScreenState extends State<MapScreen> {
     _oriented.value = pos.bearing.abs() > 0.5 || pos.tilt > 0.5;
   }
 
-  /// Reset rotation/tilt to the default north-up, flat view — always animating
-  /// the camera so the reset is real — while **never** dropping the follow.
-  ///
-  /// A programmatic camera move makes the native SDK dismiss tracking, so when
-  /// following we orchestrate it explicitly: leave follow, animate the reset on
-  /// a free camera, then re-enter plain follow (collapsing follow+heading to
-  /// plain follow so the camera doesn't snap back to the device heading). The
-  /// dismissals this provokes are guarded by [_suppressTrackingDismiss].
-  Future<void> _resetOrientation() async {
-    final controller = _controller;
-    final pos = controller?.cameraPosition;
-    if (controller == null || pos == null) return;
-
-    final wasFollowing = _trackingMode != MyLocationTrackingMode.none;
-    final reset = CameraUpdate.newCameraPosition(
-      CameraPosition(target: pos.target, zoom: pos.zoom, bearing: 0, tilt: 0),
+  /// Tap the location FAB; show the Settings recovery SnackBar if the user has
+  /// permanently denied permission (they asked for it by tapping).
+  Future<void> _onLocationTap() async {
+    final result = await _location.onFabPressed();
+    if (!mounted || result != LocationTapResult.permanentlyDenied) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(_kLocationDeniedMessage),
+        action: SnackBarAction(
+          label: 'Settings',
+          onPressed: _location.openAppSettings,
+        ),
+      ),
     );
-
-    if (!wasFollowing) {
-      await controller.animateCamera(reset);
-      return;
-    }
-
-    _suppressTrackingDismiss = true;
-    try {
-      await controller.updateMyLocationTrackingMode(MyLocationTrackingMode.none);
-      await controller.animateCamera(reset);
-      await controller
-          .updateMyLocationTrackingMode(MyLocationTrackingMode.tracking);
-      if (mounted) {
-        setState(() => _trackingMode = MyLocationTrackingMode.tracking);
-      }
-    } finally {
-      _suppressTrackingDismiss = false;
-    }
-  }
-
-  // ── Location follow (FAB) ──
-
-  /// Icon reflects the current follow state (ported from track).
-  IconData get _locationFabIcon {
-    if (!_locationEnabled) return Icons.location_disabled;
-    switch (_trackingMode) {
-      case MyLocationTrackingMode.trackingCompass:
-        return Icons.explore;
-      case MyLocationTrackingMode.tracking:
-        return Icons.my_location;
-      default:
-        return Icons.location_searching;
-    }
-  }
-
-  /// Tap the location FAB. If location isn't enabled yet, request permission
-  /// (and guide to Settings when permanently denied — the user asked for it by
-  /// tapping). Otherwise cycle none → tracking → trackingCompass → none.
-  Future<void> _onLocationFabPressed() async {
-    if (!_locationEnabled) {
-      // Web: the geolocate control prompts the browser itself; just enable +
-      // follow so the dot shows.
-      if (kIsWeb) {
-        setState(() => _locationEnabled = true);
-        await _setTrackingMode(MyLocationTrackingMode.tracking);
-        return;
-      }
-      final granted = await _location.requestPermission();
-      if (granted) {
-        setState(() => _locationEnabled = true);
-        await _setTrackingMode(MyLocationTrackingMode.tracking);
-      } else if (mounted && await _location.isPermanentlyDenied() && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Location permission is off. Enable it in Settings.'),
-            action: SnackBarAction(
-              label: 'Settings',
-              onPressed: _location.openSettings,
-            ),
-          ),
-        );
-      }
-      return;
-    }
-
-    final previous = _trackingMode;
-    final MyLocationTrackingMode next;
-    switch (previous) {
-      case MyLocationTrackingMode.none:
-        next = MyLocationTrackingMode.tracking;
-        break;
-      case MyLocationTrackingMode.tracking:
-        next = MyLocationTrackingMode.trackingCompass;
-        break;
-      default:
-        next = MyLocationTrackingMode.none;
-    }
-    await _setTrackingMode(next);
-
-    // Leaving follow+heading rotates the camera to the device heading; turning
-    // off should restore the default north-up, flat view (same as the reset button).
-    if (previous == MyLocationTrackingMode.trackingCompass &&
-        next == MyLocationTrackingMode.none) {
-      _resetOrientation();
-    }
-  }
-
-  Future<void> _setTrackingMode(MyLocationTrackingMode mode) async {
-    await _controller?.updateMyLocationTrackingMode(mode);
-    if (mounted) setState(() => _trackingMode = mode);
-  }
-
-  /// MapLibre fires this when a camera move overrides follow. Ignore the ones our
-  /// own reset sequence provokes ([_suppressTrackingDismiss]); otherwise the user
-  /// panned/zoomed by hand → drop to the free (none) state.
-  void _onCameraTrackingDismissed() {
-    if (_suppressTrackingDismiss) return;
-    if (mounted && _trackingMode != MyLocationTrackingMode.none) {
-      setState(() => _trackingMode = MyLocationTrackingMode.none);
-    }
   }
 
   /// Frame the whole Philippines once the style is ready. Fitting to bounds
@@ -270,7 +145,7 @@ class _MapScreenState extends State<MapScreen> {
             onMapCreated: _onMapCreated,
             onStyleLoadedCallback: _fitPhilippines,
             // User panned/zoomed while following → exit follow mode.
-            onCameraTrackingDismissed: _onCameraTrackingDismissed,
+            onCameraTrackingDismissed: _location.onCameraTrackingDismissed,
             // Avoid a blank flash when the native GL surface is recreated on
             // resume from background (Android lifecycle).
             translucentTextureSurface: true,
@@ -287,12 +162,11 @@ class _MapScreenState extends State<MapScreen> {
             zoomGesturesEnabled: true,
             rotateGesturesEnabled: true,
             tiltGesturesEnabled: true,
-            // "My location" blue dot. Enabled once permission is granted (native)
-            // or on web (_initLocation). Plain dot — no heading cone (heading-arrow
-            // task). Camera-follow driven by the location FAB (_trackingMode).
-            myLocationEnabled: _locationEnabled,
+            // "My location" blue dot + follow, owned by _location. Plain dot —
+            // no heading cone yet (heading-arrow task).
+            myLocationEnabled: _location.enabled,
             myLocationRenderMode: MyLocationRenderMode.normal,
-            myLocationTrackingMode: _trackingMode,
+            myLocationTrackingMode: _location.trackingMode,
             // Use high-accuracy GPS at a 1s interval. The default `balanced`
             // priority lets Android throttle a stationary device to ~1 fix/30s,
             // which collides with MapLibre's ~30s stale timeout and leaves the
@@ -319,20 +193,15 @@ class _MapScreenState extends State<MapScreen> {
                     child: CompassButton(
                       bearing: _bearing,
                       visible: _oriented,
-                      onReset: _resetOrientation,
+                      onReset: _location.resetOrientation,
                     ),
                   ),
-                  // My-location / follow-me FAB (track's location FAB).
                   Align(
                     alignment: Alignment.bottomRight,
-                    child: FloatingActionButton.small(
-                      heroTag: 'location',
-                      onPressed: _onLocationFabPressed,
-                      foregroundColor:
-                          _trackingMode != MyLocationTrackingMode.none
-                              ? Theme.of(context).colorScheme.primary
-                              : null,
-                      child: Icon(_locationFabIcon),
+                    child: LocationFab(
+                      enabled: _location.enabled,
+                      trackingMode: _location.trackingMode,
+                      onPressed: _onLocationTap,
                     ),
                   ),
                 ],

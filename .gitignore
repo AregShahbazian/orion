@@ -36,6 +36,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+# Gradle build output (reports, intermediates) — never commit
+/android/build/
+/android/.gradle/
 
 # Claude Code local / transient state
 .claude/scheduled_tasks.lock

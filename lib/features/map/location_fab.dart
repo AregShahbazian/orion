@@ -1,0 +1,42 @@
+import 'package:flutter/material.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
+
+/// The my-location / follow-me FAB (ported from `track`'s location FAB). A pure
+/// view of [enabled] + [trackingMode]; its parent rebuilds it when those change.
+/// Icon reflects the state; tint goes primary while following.
+class LocationFab extends StatelessWidget {
+  const LocationFab({
+    super.key,
+    required this.enabled,
+    required this.trackingMode,
+    required this.onPressed,
+  });
+
+  final bool enabled;
+  final MyLocationTrackingMode trackingMode;
+  final VoidCallback onPressed;
+
+  IconData get _icon {
+    if (!enabled) return Icons.location_disabled;
+    switch (trackingMode) {
+      case MyLocationTrackingMode.trackingCompass:
+        return Icons.explore;
+      case MyLocationTrackingMode.tracking:
+        return Icons.my_location;
+      default:
+        return Icons.location_searching;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final following = trackingMode != MyLocationTrackingMode.none;
+    return FloatingActionButton.small(
+      heroTag: 'location',
+      onPressed: onPressed,
+      foregroundColor:
+          following ? Theme.of(context).colorScheme.primary : null,
+      child: Icon(_icon),
+    );
+  }
+}
