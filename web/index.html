@@ -33,6 +33,14 @@
   <script src='https://unpkg.com/maplibre-gl@^5.24.0/dist/maplibre-gl.js'></script>
   <link href='https://unpkg.com/maplibre-gl@^5.24.0/dist/maplibre-gl.css' rel='stylesheet'/>
 
+  <style>
+    /* Orion drives location from its own Flutter HUD FAB; hide MapLibre's
+       built-in geolocate control so web doesn't show two overlapping location
+       icons. The control still exists (our FAB triggers it programmatically),
+       so the dot + accuracy circle remain. */
+    .maplibregl-ctrl-geolocate { display: none !important; }
+  </style>
+
   <title>Orion</title>
   <link rel="manifest" href="manifest.json">
 </head>
