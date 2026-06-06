@@ -28,7 +28,10 @@ const int kInteractionLogCapacity = 200;
 /// thin dispatcher layers over the existing controllers without an app-wide
 /// rewrite. See `ai/phase-3/interaction-controller/design.md`.
 class InteractionController {
-  InteractionController({this.capacity = kInteractionLogCapacity});
+  InteractionController({
+    this.capacity = kInteractionLogCapacity,
+    this.logEvents = false,
+  });
 
   /// The app-global instance the UI dispatches through. (Ctor stays public so
   /// tests can use isolated instances.)
@@ -36,6 +39,12 @@ class InteractionController {
 
   /// Max records kept; the oldest is dropped once the buffer exceeds this.
   final int capacity;
+
+  /// Whether each recorded interaction is echoed to [devLog]. Off by default —
+  /// the ring buffer ([recent]) always captures everything; this only gates the
+  /// noisy per-event console/DevTools line. Flip at runtime (e.g. from the dev
+  /// console) to watch interactions live.
+  bool logEvents;
 
   final Map<String, InteractionHandler> _handlers = {};
   final Queue<InteractionRecord> _log = Queue<InteractionRecord>();
@@ -101,6 +110,6 @@ class InteractionController {
     while (_log.length > capacity) {
       _log.removeFirst();
     }
-    devLog('interaction', r.line);
+    if (logEvents) devLog('interaction', r.line);
   }
 }

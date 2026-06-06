@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
+import '../../core/interaction/console_bridge.dart';
 import '../../core/interaction/interaction_controller.dart';
 import '../../core/interaction/interaction_ids.dart';
 import 'compass_button.dart';
@@ -207,6 +208,13 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  /// Style is loaded and the camera is usable: frame the country, then let dev
+  /// console automation know via `orion.ready` (no-op off web/debug).
+  Future<void> _onStyleLoaded() async {
+    await _fitPhilippines();
+    signalMapReady();
+  }
+
   @override
   Widget build(BuildContext context) {
     // The native attribution "i" lives in the platform view, outside Flutter's
@@ -240,7 +248,7 @@ class _MapScreenState extends State<MapScreen> {
               zoom: kPhInitialZoom,
             ),
             onMapCreated: _onMapCreated,
-            onStyleLoadedCallback: _fitPhilippines,
+            onStyleLoadedCallback: _onStyleLoaded,
             // User panned/zoomed while following → exit follow mode.
             onCameraTrackingDismissed: () =>
                 _interactions.dispatch(InteractionIds.mapTrackingDismissed),
