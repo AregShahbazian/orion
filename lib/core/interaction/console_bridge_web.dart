@@ -34,8 +34,7 @@ void signalMapReady() {
 /// [dispatch] returns a Promise that resolves when the handler finishes (e.g. a
 /// camera animation completes), so scripts can sequence steps with `await`.
 ///
-/// Dev-only — the caller gates this on [kDebugMode], so it's never installed in
-/// a release build.
+/// Installed on every build, all platforms including release/prod.
 void installInteractionConsoleBridge(InteractionController bus) {
   final api = JSObject();
 
