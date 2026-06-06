@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' show Point;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
@@ -129,9 +130,18 @@ class _MapScreenState extends State<MapScreen> {
     // physical pixels. (The native compass is disabled; our Flutter
     // CompassButton in the HUD layer replaces it.)
     // Pinned bottom-LEFT so the bottom-right corner is free for the location FAB.
+    // EXCEPT on web: maplibre_gl_web resets the attribution to bottom-right on
+    // every partial option update (e.g. when location turns on) — its
+    // interpretMapLibreMapOptions forces bottomRight whenever the position key
+    // is absent from the diff. Fighting it makes the label visibly jump, so on
+    // web we let it live bottom-right and move the FAB to bottom-left instead.
     final pad = MediaQuery.paddingOf(context);
     final attributionMargins =
         Point(pad.left + kHudEdgeInset, pad.bottom + kHudEdgeInset);
+    final attributionPosition = kIsWeb
+        ? AttributionButtonPosition.bottomRight
+        : AttributionButtonPosition.bottomLeft;
+    final fabAlignment = kIsWeb ? Alignment.bottomLeft : Alignment.bottomRight;
 
     return Scaffold(
       body: Stack(
@@ -154,8 +164,9 @@ class _MapScreenState extends State<MapScreen> {
             // camera so we can mirror bearing/tilt into the button.
             compassEnabled: false,
             trackCameraPosition: true,
-            // Keep the native attribution inside the safe area (bottom-left).
-            attributionButtonPosition: AttributionButtonPosition.bottomLeft,
+            // Keep the native attribution inside the safe area (bottom-left on
+            // native, bottom-right on web — see attributionPosition above).
+            attributionButtonPosition: attributionPosition,
             attributionButtonMargins: attributionMargins,
             // All gestures enabled (PRD req. 5).
             scrollGesturesEnabled: true,
@@ -199,7 +210,7 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                   ),
                   Align(
-                    alignment: Alignment.bottomRight,
+                    alignment: fabAlignment,
                     child: LocationFab(
                       enabled: _location.enabled,
                       trackingMode: _location.trackingMode,
