@@ -98,8 +98,10 @@ jobs:
           ref="${GITHUB_REF#refs/heads/}"
           if [ "$ref" = "main" ]; then
             echo "dir=/root/orion/site/apk"       >> "$GITHUB_OUTPUT"
+            echo "keep=3"                          >> "$GITHUB_OUTPUT"
           else
             echo "dir=/root/orion/site/apk/${ref#feature/}" >> "$GITHUB_OUTPUT"
+            echo "keep=1"                          >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build APK (release)
@@ -115,16 +117,17 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -p "${{ vars.VPS_PORT }}" -H "${{ vars.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Deploy APK → VPS (versioned, accumulate, regenerate index)
-        # Versioned name app-<sha7>-<YYMMDD-HHMMSS>.apk; old builds are kept. The index is
-        # regenerated ON the VPS (per directory) so it reflects every accumulated APK.
+      - name: Deploy APK → VPS (versioned, prune old, regenerate index)
+        # Versioned name app-<YYMMDD-HHMMSS>-<sha7>.apk (date-first so ls -t sorts correctly).
+        # After upload, prune oldest beyond KEEP, then regenerate the index.
         run: |
           SHA="$(git rev-parse --short=7 HEAD)"
           STAMP="$(date +%y%m%d-%H%M%S)"
-          NAME="app-$SHA-$STAMP.apk"
+          NAME="app-$STAMP-$SHA.apk"
           DIR="${{ steps.slot.outputs.dir }}"
+          KEEP="${{ steps.slot.outputs.keep }}"
           ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" "mkdir -p $DIR"
           scp -P "${{ vars.VPS_PORT }}" build/app/outputs/flutter-apk/app-release.apk \
             "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}:$DIR/$NAME"
           ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" \
-            "bash /root/orion/gen-apk-index.sh $DIR"
+            "ls -t $DIR/*.apk 2>/dev/null | tail -n +\$(( $KEEP + 1 )) | xargs -r rm -f && bash /root/orion/gen-apk-index.sh $DIR"

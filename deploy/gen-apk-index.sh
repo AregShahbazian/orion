@@ -11,8 +11,8 @@ mkdir -p "$APK_DIR"
   echo '<!doctype html><meta charset="utf-8"><title>Orion APK builds</title>'
   echo '<h2>Orion APK builds — newest first</h2><ul>'
   for f in $(ls -t "$APK_DIR"/*.apk 2>/dev/null); do
-    bn="$(basename "$f")"; sz="$(du -h "$f" | cut -f1)"
-    printf '  <li><a href="%s">%s</a> &mdash; %s</li>\n' "$bn" "$bn" "$sz"
+    bn="$(basename "$f")"; sz="$(du -h "$f" | cut -f1)"; ts="$(date -r "$f" '+%Y-%m-%d %H:%M')"
+    printf '  <li><a href="%s">%s</a> &mdash; %s &mdash; %s</li>\n' "$bn" "$bn" "$ts" "$sz"
   done
   echo '</ul>'
 } > "$APK_DIR/index.html"
