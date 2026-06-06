@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
+import '../../core/interaction/interaction_controller.dart';
+import '../../core/interaction/interaction_ids.dart';
 import 'compass_button.dart';
 import 'location_controller.dart';
 import 'location_fab.dart';
@@ -35,6 +37,10 @@ class _MapScreenState extends State<MapScreen> {
   // FAB) whenever it changes so its enabled/trackingMode props stay in sync.
   final LocationController _location = LocationController();
 
+  // App-global command bus: every HUD/map interaction is dispatched through it,
+  // so it's recorded/logged and can be driven programmatically (Phase 3).
+  final InteractionController _interactions = InteractionController.instance;
+
   // Drive the compass/reset-orientation button without rebuilding the map.
   // _bearing rotates the needle; _oriented (bearing≠0 || tilt≠0) shows the button.
   final ValueNotifier<double> _bearing = ValueNotifier(0);
@@ -46,6 +52,14 @@ class _MapScreenState extends State<MapScreen> {
     _initConnectivity();
     _location.addListener(_onLocationChanged);
     _location.init();
+    // Bind the HUD/map interactions to the existing controller methods. The UI
+    // dispatches the ids below instead of calling these directly.
+    _interactions
+      ..register(InteractionIds.followMeTap, (_) => _location.onFabPressed())
+      ..register(
+          InteractionIds.resetOrientationTap, (_) => _location.resetOrientation())
+      ..register(InteractionIds.mapTrackingDismissed,
+          (_) => _location.onCameraTrackingDismissed());
   }
 
   Future<void> _initConnectivity() async {
@@ -66,6 +80,10 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     _connSub?.cancel();
+    _interactions
+      ..unregister(InteractionIds.followMeTap)
+      ..unregister(InteractionIds.resetOrientationTap)
+      ..unregister(InteractionIds.mapTrackingDismissed);
     _controller?.removeListener(_onCameraChanged);
     _location.removeListener(_onLocationChanged);
     _location.dispose();
@@ -92,7 +110,7 @@ class _MapScreenState extends State<MapScreen> {
   /// Tap the location FAB; show the Settings recovery SnackBar if the user has
   /// permanently denied permission (they asked for it by tapping).
   Future<void> _onLocationTap() async {
-    final result = await _location.onFabPressed();
+    final result = await _interactions.dispatch(InteractionIds.followMeTap);
     if (!mounted || result != LocationTapResult.permanentlyDenied) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -155,7 +173,8 @@ class _MapScreenState extends State<MapScreen> {
             onMapCreated: _onMapCreated,
             onStyleLoadedCallback: _fitPhilippines,
             // User panned/zoomed while following → exit follow mode.
-            onCameraTrackingDismissed: _location.onCameraTrackingDismissed,
+            onCameraTrackingDismissed: () =>
+                _interactions.dispatch(InteractionIds.mapTrackingDismissed),
             // Avoid a blank flash when the native GL surface is recreated on
             // resume from background (Android lifecycle).
             translucentTextureSurface: true,
@@ -206,7 +225,8 @@ class _MapScreenState extends State<MapScreen> {
                     child: CompassButton(
                       bearing: _bearing,
                       visible: _oriented,
-                      onReset: _location.resetOrientation,
+                      onReset: () =>
+                          _interactions.dispatch(InteractionIds.resetOrientationTap),
                     ),
                   ),
                   Align(
