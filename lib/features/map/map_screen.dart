@@ -5,6 +5,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
+import 'compass_button.dart';
 import 'map_constants.dart';
 import 'offline_indicator.dart';
 
@@ -21,6 +22,11 @@ class _MapScreenState extends State<MapScreen> {
 
   bool _isOnline = true;
   StreamSubscription<List<ConnectivityResult>>? _connSub;
+
+  // Drive the compass/reset-orientation button without rebuilding the map.
+  // _bearing rotates the needle; _oriented (bearing≠0 || tilt≠0) shows the button.
+  final ValueNotifier<double> _bearing = ValueNotifier(0);
+  final ValueNotifier<bool> _oriented = ValueNotifier(false);
 
   @override
   void initState() {
@@ -42,11 +48,35 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     _connSub?.cancel();
+    _controller?.removeListener(_onCameraChanged);
+    _bearing.dispose();
+    _oriented.dispose();
     super.dispose();
   }
 
   void _onMapCreated(MapLibreMapController controller) {
     _controller = controller;
+    controller.addListener(_onCameraChanged);
+  }
+
+  /// Mirror the camera's bearing/tilt into the notifiers. 0.5° dead-zones avoid
+  /// flicker from sub-degree float noise at rest.
+  void _onCameraChanged() {
+    final pos = _controller?.cameraPosition;
+    if (pos == null) return;
+    _bearing.value = pos.bearing;
+    _oriented.value = pos.bearing.abs() > 0.5 || pos.tilt > 0.5;
+  }
+
+  /// Restore the default north-up, flat view (bearing 0, tilt 0).
+  void _resetOrientation() {
+    final pos = _controller?.cameraPosition;
+    if (pos == null) return;
+    _controller!.animateCamera(
+      CameraUpdate.newCameraPosition(
+        CameraPosition(target: pos.target, zoom: pos.zoom, bearing: 0, tilt: 0),
+      ),
+    );
   }
 
   /// Frame the whole Philippines once the style is ready. Fitting to bounds
@@ -66,14 +96,14 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // The native MapLibre controls (compass, attribution "i") live in the
-    // platform view, outside Flutter's tree, so SafeArea can't reach them — the
-    // plugin's margin params are the only lever. Inset them by the device
-    // safe-area padding so they clear the status bar, nav bar, camera cutout and
-    // rounded corners. The plugin multiplies these margins by display density
-    // itself (Convert.toPoint), so pass logical dp here — NOT physical pixels.
+    // The native attribution "i" lives in the platform view, outside Flutter's
+    // tree, so SafeArea can't reach it — the plugin's margin param is the only
+    // lever. Inset it by the device safe-area padding so it clears the nav bar,
+    // camera cutout and rounded corners. The plugin multiplies these margins by
+    // display density itself (Convert.toPoint), so pass logical dp here — NOT
+    // physical pixels. (The native compass is disabled; our Flutter
+    // CompassButton in the HUD layer replaces it.)
     final pad = MediaQuery.paddingOf(context);
-    final compassMargins = Point(pad.right + kHudEdgeInset, pad.top + kHudEdgeInset);
     final attributionMargins =
         Point(pad.right + kHudEdgeInset, pad.bottom + kHudEdgeInset);
 
@@ -91,9 +121,12 @@ class _MapScreenState extends State<MapScreen> {
             // Avoid a blank flash when the native GL surface is recreated on
             // resume from background (Android lifecycle).
             translucentTextureSurface: true,
-            // Keep native controls inside the safe area (recomputed on rotation).
-            compassViewPosition: CompassViewPosition.topRight,
-            compassViewMargins: compassMargins,
+            // Native compass disabled — replaced by the Flutter CompassButton
+            // below so one control handles both rotation and tilt. Track the
+            // camera so we can mirror bearing/tilt into the button.
+            compassEnabled: false,
+            trackCameraPosition: true,
+            // Keep the native attribution inside the safe area.
             attributionButtonPosition: AttributionButtonPosition.bottomRight,
             attributionButtonMargins: attributionMargins,
             // All gestures enabled (PRD req. 5).
@@ -115,6 +148,14 @@ class _MapScreenState extends State<MapScreen> {
               child: Stack(
                 children: [
                   if (!_isOnline) const OfflineBanner(),
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: CompassButton(
+                      bearing: _bearing,
+                      visible: _oriented,
+                      onReset: _resetOrientation,
+                    ),
+                  ),
                 ],
               ),
             ),
