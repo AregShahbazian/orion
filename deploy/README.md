@@ -3,22 +3,32 @@
 Building and serving Orion is split from the **devbox** (which now only hosts Claude Code):
 
 - **GitHub Actions** (`.github/workflows/build-and-deploy.yml`) builds web + APK on every
-  push to `phase-1-map` and pushes the artifacts to the VPS over SSH.
+  push and pushes the artifacts to the VPS over SSH.
 - **The VPS** runs a small always-on **Caddy** server (`orion-web.service`) that serves
   those artifacts. The VPS no longer needs any build toolchain.
 
+**Prod vs previews** (Caddy serves nested paths, so no VPS change is needed for previews):
+
+| Push to              | Web served at      | APK served at      |
+|----------------------|--------------------|--------------------|
+| `main`               | `/web/`            | `/apk/`            |
+| `feature/<name>`     | `/web/<name>/`     | `/apk/<name>/`     |
+
+The `feature/` prefix is stripped — `feature/my-feature` → `/web/my-feature/`. Deleting a
+`feature/*` branch removes its preview dirs automatically (`preview-cleanup.yml`).
+
 ```
-push to orion (phase-1-map)
+push (main or feature/<name>)
         │
         ▼
 GitHub Actions ── build web ──► rsync ─┐
               └─ build apk ──► scp  ───┤
                                        ▼
-                       VPS  /root/orion/site/{web,apk}/
+        VPS  /root/orion/site/{web,apk}/[<name>/]
                                        │
                                   Caddy (:8080)
                                        ▼
-                  http://<vps-ip>:8080/web/   and   /apk/
+       http://<vps-ip>:8080/web/[<name>/]   and   /apk/[<name>/]
 ```
 
 These four files live on the VPS under `/root/orion/`:
@@ -74,7 +84,7 @@ In the **orion** GitHub repo → Settings → Secrets and variables → Actions:
 | Variable | `VPS_USER`    | `root`                              |
 | Variable | `VPS_PORT`    | `22`                                |
 
-That's it — the next push to `phase-1-map` builds and deploys.
+That's it — the next push (`main` for prod, `feature/<name>` for a preview) builds and deploys.
 
 ---
 
@@ -111,14 +121,16 @@ curl -sI http://localhost:8080/apk/    | head -n1
 
 ## Day-to-day: push → live
 
-1. Commit and **push to `phase-1-map`** (or run the workflow manually from the Actions tab —
-   it also has `workflow_dispatch`).
+1. Commit and **push** — `main` for prod, `feature/<name>` for a preview (or run the
+   workflow manually from the Actions tab — it also has `workflow_dispatch`).
 2. Watch the run under the repo's **Actions** tab. The `web` and `apk` jobs run in parallel
    and deploy independently — if the APK build fails, the web deploy still goes through.
-3. When green:
-   - **Web** is live at `/web/` (fully replaced each push).
-   - A new **APK** appears at the top of `/apk/` as `app-<sha7>-<timestamp>.apk`; older
-     builds are kept. On your phone, open `/apk/`, tap the newest, install.
+3. When green (paths get the `/<name>/` suffix for previews):
+   - **Web** is live at `/web/` (prod, replaced each push) or `/web/<name>/` (preview).
+   - A new **APK** appears at the top of `/apk/` (or `/apk/<name>/`) as
+     `app-<sha7>-<timestamp>.apk`; older builds are kept. On your phone, open the index,
+     tap the newest, install.
+4. Delete a `feature/*` branch and `preview-cleanup.yml` wipes its preview dirs.
 
 No VPS commands are needed for a normal deploy — the server just keeps serving whatever
 the workflow drops into `site/`. You only touch the VPS to start/stop the server or change

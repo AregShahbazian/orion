@@ -1,25 +1,28 @@
 # Build Orion (web + APK) on push and deploy to the VPS over SSH.
 #
-# Two independent jobs — apk failing never blocks web (same philosophy as the old
-# .devbox build). Each job builds AND deploys its own artifact, so there's no shared
-# "deploy" job that a single failure could take down.
+# Prod:    push to `main`            -> /web/        and /apk/
+# Preview: push to `feature/<name>`  -> /web/<name>/ and /apk/<name>/   (the `feature/`
+#          prefix is stripped; e.g. feature/my-feature -> /web/my-feature/).
+#
+# Two independent jobs — apk failing never blocks web. Each builds AND deploys its own
+# artifact. Caddy already serves nested paths, so no VPS changes are needed for previews.
 #
 # Required GitHub config (Settings → Secrets and variables → Actions):
-#   Secret  VPS_SSH_KEY   private half of the deploy key (the public half goes in the
-#                         VPS user's ~/.ssh/authorized_keys)
-#   Variable VPS_HOST     VPS IP or hostname
-#   Variable VPS_USER     SSH user (e.g. root)
-#   Variable VPS_PORT     SSH port (e.g. 22)
-# Deploy target on the VPS: /root/orion/site/{web,apk}/  (served by Caddy — see deploy/).
+#   Secret   VPS_SSH_KEY   private half of the CI deploy key
+#   Variables VPS_HOST / VPS_USER / VPS_PORT
+# Deploy root on the VPS: /root/orion/site/{web,apk}/  (served by Caddy — see deploy/).
 
 name: build-and-deploy
 
 on:
   push:
-    branches: [phase-1-map]
+    branches:
+      - main
+      - 'feature/**'
   workflow_dispatch: {}
 
 concurrency:
+  # Per-branch: a new push supersedes an in-flight build of the same branch only.
   group: build-and-deploy-${{ github.ref }}
   cancel-in-progress: true
 
@@ -34,11 +37,29 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Compute deploy slot
+        id: slot
+        # main -> served at /web/ (dir site/web), no slot. feature/<name> -> /web/<name>/.
+        # Preview dirs are isolated leaves, so they mirror with --delete; main must NOT use
+        # --delete (it would wipe the sibling preview subdirs under site/web).
+        run: |
+          ref="${GITHUB_REF#refs/heads/}"
+          if [ "$ref" = "main" ]; then
+            echo "base=/web/"                    >> "$GITHUB_OUTPUT"
+            echo "dir=/root/orion/site/web"      >> "$GITHUB_OUTPUT"
+            echo "delete="                       >> "$GITHUB_OUTPUT"
+          else
+            slot="${ref#feature/}"
+            echo "base=/web/$slot/"              >> "$GITHUB_OUTPUT"
+            echo "dir=/root/orion/site/web/$slot" >> "$GITHUB_OUTPUT"
+            echo "delete=--delete"               >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build web (release)
-        # Served under /web/, so base-href must match (else assets 404 → blank page).
+        # base-href must match the served path (else assets 404 → blank page).
         run: |
           flutter pub get
-          flutter build web --release --base-href /web/
+          flutter build web --release --base-href "${{ steps.slot.outputs.base }}"
 
       - name: Set up SSH
         run: |
@@ -48,11 +69,11 @@ jobs:
           ssh-keyscan -p "${{ vars.VPS_PORT }}" -H "${{ vars.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Deploy web → VPS
-        # Mirror (--delete): web is fully replaced each build.
         run: |
-          ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" 'mkdir -p /root/orion/site/web'
-          rsync -az --delete -e "ssh -p ${{ vars.VPS_PORT }}" \
-            build/web/ "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}:/root/orion/site/web/"
+          ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" \
+            'mkdir -p ${{ steps.slot.outputs.dir }}'
+          rsync -az ${{ steps.slot.outputs.delete }} -e "ssh -p ${{ vars.VPS_PORT }}" \
+            build/web/ "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}:${{ steps.slot.outputs.dir }}/"
 
   apk:
     runs-on: ubuntu-latest
@@ -69,6 +90,18 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Compute deploy slot
+        id: slot
+        # main -> site/apk ; feature/<name> -> site/apk/<name>. APK never uses --delete
+        # (versioned builds accumulate); the index is regenerated per directory.
+        run: |
+          ref="${GITHUB_REF#refs/heads/}"
+          if [ "$ref" = "main" ]; then
+            echo "dir=/root/orion/site/apk"       >> "$GITHUB_OUTPUT"
+          else
+            echo "dir=/root/orion/site/apk/${ref#feature/}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build APK (release)
         # ubuntu-latest ships the Android SDK; flutter build apk uses it.
         run: |
@@ -84,13 +117,14 @@ jobs:
 
       - name: Deploy APK → VPS (versioned, accumulate, regenerate index)
         # Versioned name app-<sha7>-<YYMMDD-HHMMSS>.apk; old builds are kept. The index is
-        # regenerated ON the VPS so it reflects every accumulated APK, not just this one.
+        # regenerated ON the VPS (per directory) so it reflects every accumulated APK.
         run: |
           SHA="$(git rev-parse --short=7 HEAD)"
           STAMP="$(date +%y%m%d-%H%M%S)"
           NAME="app-$SHA-$STAMP.apk"
-          ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" 'mkdir -p /root/orion/site/apk'
+          DIR="${{ steps.slot.outputs.dir }}"
+          ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" "mkdir -p $DIR"
           scp -P "${{ vars.VPS_PORT }}" build/app/outputs/flutter-apk/app-release.apk \
-            "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}:/root/orion/site/apk/$NAME"
+            "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}:$DIR/$NAME"
           ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" \
-            'bash /root/orion/gen-apk-index.sh'
+            "bash /root/orion/gen-apk-index.sh $DIR"

@@ -1,0 +1,29 @@
+# When a feature/* branch is deleted, remove its preview directories from the VPS.
+# Runs from the default branch's copy of this file (GitHub runs `delete`-triggered
+# workflows from the default branch), so this must be merged to main to take effect.
+
+name: preview-cleanup
+
+on:
+  delete: {}
+
+jobs:
+  cleanup:
+    # Only branch deletions named feature/* — ignore tag deletions and other branches.
+    if: github.event.ref_type == 'branch' && startsWith(github.event.ref, 'feature/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${{ vars.VPS_PORT }}" -H "${{ vars.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Remove preview dirs → VPS
+        run: |
+          slot="${{ github.event.ref }}"; slot="${slot#feature/}"
+          # Guard against an empty slot so we can never rm the whole web/apk roots.
+          [ -n "$slot" ] || { echo "empty slot — refusing to delete"; exit 1; }
+          ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" \
+            "rm -rf /root/orion/site/web/$slot /root/orion/site/apk/$slot && echo removed preview '$slot'"

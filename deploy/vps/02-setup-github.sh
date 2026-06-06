@@ -33,4 +33,4 @@ gh variable set VPS_USER -R "$REPO" --body "$VPS_USER"
 gh variable set VPS_PORT -R "$REPO" --body "$VPS_PORT"
 
 log "done. GitHub is wired to deploy to $VPS_USER@$VPS_HOST:$VPS_PORT"
-log "push to phase-1-map (or run the workflow manually) and it will build + deploy."
+log "push to main (or a feature/* branch for a preview) and it will build + deploy."
