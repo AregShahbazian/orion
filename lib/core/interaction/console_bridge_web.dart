@@ -28,6 +28,7 @@ void signalMapReady() {
 /// await orion.dispatch('map.zoom.changed', { zoom: 12 })   // resolves when the move settles
 /// orion.ids                         // → the valid interaction ids
 /// orion.logEvents(true)             // start echoing each interaction to the log
+/// orion.dump()                      // print the captured buffer; returns the records
 /// ```
 ///
 /// [dispatch] returns a Promise that resolves when the handler finishes (e.g. a
@@ -66,6 +67,22 @@ void installInteractionConsoleBridge(InteractionController bus) {
   api.setProperty('logEvents'.toJS, ((JSBoolean? on) {
     if (on != null) bus.logEvents = on.toDart;
     return bus.logEvents.toJS;
+  }).toJS);
+
+  // `orion.dump()` — log the captured buffer as readable lines and return the
+  // records as JS objects ({id, origin, at, payload}) so they can be inspected
+  // or replayed via orion.dispatch(rec.id, rec.payload).
+  api.setProperty('dump'.toJS, (() {
+    web.console.log(bus.dump().toJS);
+    return [
+      for (final r in bus.recent())
+        {
+          'id': r.id,
+          'origin': r.origin.name,
+          'at': r.at.toIso8601String(),
+          'payload': r.payload,
+        }.jsify(),
+    ].toJS;
   }).toJS);
 
   // A Promise resolving once the map is usable: `await orion.ready`.
