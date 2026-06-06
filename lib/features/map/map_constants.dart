@@ -3,6 +3,11 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 /// OpenFreeMap `liberty` style — free, no API key, no usage limits.
 const String kMapStyleUrl = 'https://tiles.openfreemap.org/styles/liberty';
 
+/// Gap (logical dp) between HUD controls and the safe-area edge, so they clear
+/// rounded corners. Shared by the Flutter HUD layer and the native-control
+/// margins so both sit at the same inset.
+const double kHudEdgeInset = 8.0;
+
 /// Rough center of the Philippines for the initial camera.
 /// Phase 1 / T4 will refine this to a fit over [kPhBounds].
 const LatLng kPhCenter = LatLng(12.8, 122.0);

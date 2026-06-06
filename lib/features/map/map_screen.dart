@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' show Point;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
@@ -65,6 +66,17 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // The native MapLibre controls (compass, attribution "i") live in the
+    // platform view, outside Flutter's tree, so SafeArea can't reach them — the
+    // plugin's margin params are the only lever. Inset them by the device
+    // safe-area padding so they clear the status bar, nav bar, camera cutout and
+    // rounded corners. The plugin multiplies these margins by display density
+    // itself (Convert.toPoint), so pass logical dp here — NOT physical pixels.
+    final pad = MediaQuery.paddingOf(context);
+    final compassMargins = Point(pad.right + kHudEdgeInset, pad.top + kHudEdgeInset);
+    final attributionMargins =
+        Point(pad.right + kHudEdgeInset, pad.bottom + kHudEdgeInset);
+
     return Scaffold(
       body: Stack(
         children: [
@@ -79,6 +91,11 @@ class _MapScreenState extends State<MapScreen> {
             // Avoid a blank flash when the native GL surface is recreated on
             // resume from background (Android lifecycle).
             translucentTextureSurface: true,
+            // Keep native controls inside the safe area (recomputed on rotation).
+            compassViewPosition: CompassViewPosition.topRight,
+            compassViewMargins: compassMargins,
+            attributionButtonPosition: AttributionButtonPosition.bottomRight,
+            attributionButtonMargins: attributionMargins,
             // All gestures enabled (PRD req. 5).
             scrollGesturesEnabled: true,
             zoomGesturesEnabled: true,
@@ -87,7 +104,21 @@ class _MapScreenState extends State<MapScreen> {
             // Zero-permission Phase 1 — no location.
             myLocationEnabled: false,
           ),
-          if (!_isOnline) const OfflineBanner(),
+
+          // Single safe-area-inset layer for ALL Flutter HUD. Add future buttons
+          // and panels as children here — they inherit the inset automatically,
+          // no per-widget MediaQuery math. (Native controls above are the one
+          // exception, since they aren't in this tree.)
+          Positioned.fill(
+            child: SafeArea(
+              minimum: const EdgeInsets.all(kHudEdgeInset),
+              child: Stack(
+                children: [
+                  if (!_isOnline) const OfflineBanner(),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
