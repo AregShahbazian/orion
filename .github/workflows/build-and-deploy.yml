@@ -127,6 +127,8 @@ jobs:
           DIR="${{ steps.slot.outputs.dir }}"
           KEEP="${{ steps.slot.outputs.keep }}"
           ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" "mkdir -p $DIR"
+          scp -P "${{ vars.VPS_PORT }}" deploy/gen-apk-index.sh \
+            "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}:/root/orion/gen-apk-index.sh"
           scp -P "${{ vars.VPS_PORT }}" build/app/outputs/flutter-apk/app-release.apk \
             "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}:$DIR/$NAME"
           ssh -p "${{ vars.VPS_PORT }}" "${{ vars.VPS_USER }}@${{ vars.VPS_HOST }}" \
