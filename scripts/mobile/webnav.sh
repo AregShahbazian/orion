@@ -8,9 +8,9 @@
 #
 # Needs a debug/profile build (the VM Service isn't attached in release).
 set -euo pipefail
-cd "$(dirname "$0")/../.."
+here="$(dirname "$0")"
 
-out=$(dart run tool/orion_remote.dart webnav)
+out=$("$here/orion.sh" webnav)
 if [ "${1:-}" = "location" ]; then
   printf '%s\n' "$out" | grep '"route"'
 else

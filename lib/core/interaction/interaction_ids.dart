@@ -16,8 +16,8 @@ class InteractionIds {
   /// HUD settings cog tapped — open the settings screen.
   static const String settingsTap = 'hud.settings.tap';
 
-  // App-screen navigation. The map stays alive beneath every screen
-  // (`ShellRoute`); these only push/pop screens over it. See
+  // App-screen navigation. Screens are child routes of the map route, so the map
+  // stays mounted/alive beneath them; these open/close screens over it. See
   // `ai/phase-5/navigation/design.md`.
 
   /// Open a named app screen. Payload `{screen: String}` (e.g. `'settings'`).

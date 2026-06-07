@@ -110,20 +110,9 @@ void installInteractionConsoleBridge(
 
   // --- Screen navigation (go_router) ---
 
-  // The semantically active route (incl. imperative `push`) lives in the
-  // topmost match (`appRouter.state`), not in `currentConfiguration.uri` (which
-  // only tracks the last declarative `go`). No browser URL on native.
-  _register('ext.orion.webnav', (_, _) async {
-    final cfg = appRouter.routerDelegate.currentConfiguration;
-    final state = appRouter.state;
-    return _ok({
-      'route': state.matchedLocation,
-      'name': state.name,
-      'declaredUri': cfg.uri.toString(),
-      'canPop': appRouter.canPop(),
-      'stackDepth': cfg.matches.length,
-    });
-  });
+  // Shared with the web bridge via routerNavState() so both report identically
+  // (no browser URL on native).
+  _register('ext.orion.webnav', (_, _) async => _ok(routerNavState()));
 }
 
 /// Parse a numeric service-extension param (all params arrive as strings).

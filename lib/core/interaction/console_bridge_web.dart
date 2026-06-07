@@ -60,8 +60,9 @@ void signalMapReady() {
 ///
 /// ```js
 /// orion.webnav.dump()       // → {route, name, declaredUri, canPop, stackDepth, browserUrl, browserPath}
-/// orion.webnav.location()   // → the active route incl. imperative push, e.g. "/settings"
-/// await orion.webnav.to('settings')   // navigate to a screen ('/' = back to map)
+/// orion.webnav.location()   // → the active route, e.g. "/settings"
+/// await orion.webnav.to('settings')   // open a screen (name or '/settings' path)
+/// await orion.webnav.back()           // close the current screen (back to the map)
 /// ```
 ///
 /// Installed on every build, all platforms including release/prod.
@@ -190,25 +191,17 @@ void installInteractionConsoleBridge(
 
   api.setProperty('mapnav'.toJS, mapnav);
 
-  // --- orion.webnav: inspect screen navigation (go_router) vs the browser URL.
-  // Handy because `push` doesn't always rewrite the address bar even though the
-  // router's own location changed — this shows both side by side.
+  // --- orion.webnav: inspect/drive screen navigation. dump() shows the router's
+  // state next to the browser URL side by side.
 
   final webnav = JSObject();
 
-  Map<String, Object?> navState() {
-    final cfg = appRouter.routerDelegate.currentConfiguration;
-    final state = appRouter.state; // the topmost match — reflects imperative push
-    return {
-      'route': state.matchedLocation, // semantically active route, e.g. /settings
-      'name': state.name, // its route name, e.g. 'settings'
-      'declaredUri': cfg.uri.toString(), // last declarative `go` location only
-      'canPop': appRouter.canPop(), // is there a screen to pop back from?
-      'stackDepth': cfg.matches.length, // number of matched routes on the stack
-      'browserUrl': web.window.location.href, // what the address bar shows
-      'browserPath': web.window.location.pathname,
-    };
-  }
+  // Router state (shared with native via routerNavState) + the browser URL.
+  Map<String, Object?> navState() => {
+        ...routerNavState(),
+        'browserUrl': web.window.location.href,
+        'browserPath': web.window.location.pathname,
+      };
 
   // `orion.webnav.dump()` — log the nav state and return it as a JS object.
   webnav.setProperty('dump'.toJS, (() {
@@ -217,29 +210,36 @@ void installInteractionConsoleBridge(
     return state.jsify();
   }).toJS);
 
-  // `orion.webnav.location()` — the semantically active route (incl. imperative
-  // pushes), e.g. "/settings".
+  // `orion.webnav.location()` — the active route, e.g. "/settings" (null before
+  // the first route resolves).
   webnav.setProperty(
-      'location'.toJS, (() => appRouter.state.matchedLocation.toJS).toJS);
+      'location'.toJS, (() => (routerNavState()['route'] as String?)?.toJS).toJS);
 
-  // `orion.webnav.to(screen)` — navigate to a screen by name (dispatches
-  // nav.screen.open); `to('/')` goes back to the map (nav.screen.close). Mirrors
-  // scripts/mobile/navto.sh. Returns a Promise.
-  webnav.setProperty('to'.toJS, ((JSString screen) {
-    final s = screen.toDart;
+  // Dispatch a known id programmatically, returning its Promise (shares the
+  // origin/await wiring with the top-level orion.dispatch).
+  JSPromise<JSAny?> dispatchProgrammatic(String id,
+      [Map<String, Object?>? payload]) {
     Future<JSAny?> run() async {
-      if (s == '/') {
-        await bus.dispatch(InteractionIds.navScreenClose,
-            origin: InteractionOrigin.programmatic);
-      } else {
-        await bus.dispatch(InteractionIds.navScreenOpen,
-            origin: InteractionOrigin.programmatic, payload: {'screen': s});
-      }
+      await bus.dispatch(id,
+          origin: InteractionOrigin.programmatic, payload: payload);
       return null;
     }
 
     return run().toJS;
+  }
+
+  // `orion.webnav.to(screen)` — open a screen (dispatches nav.screen.open).
+  // Accepts the route name ('settings') or the path ('/settings', as dump()
+  // reports — the leading slash is stripped). Returns a Promise.
+  webnav.setProperty('to'.toJS, ((JSString screen) {
+    final s = screen.toDart.replaceFirst(RegExp(r'^/'), '');
+    return dispatchProgrammatic(
+        InteractionIds.navScreenOpen, {'screen': s});
   }).toJS);
+
+  // `orion.webnav.back()` — close the current screen (dispatches nav.screen.close).
+  webnav.setProperty('back'.toJS,
+      (() => dispatchProgrammatic(InteractionIds.navScreenClose)).toJS);
 
   api.setProperty('webnav'.toJS, webnav);
 

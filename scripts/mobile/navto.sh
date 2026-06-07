@@ -10,7 +10,7 @@
 # scripts/mobile/webnav.sh to read the resulting route. Needs a debug/profile
 # build; pairs with scripts/mobile/run.sh (records the VM Service URI).
 set -euo pipefail
-cd "$(dirname "$0")/../.."
+here="$(dirname "$0")"
 
 screen="${1:-}"
 if [ -z "$screen" ]; then
@@ -18,10 +18,9 @@ if [ -z "$screen" ]; then
   exit 64
 fi
 
-# "/" means "go back to the map" — that's a pop (nav.screen.close), not a push.
+# "/" means "go back to the map" — that's a pop (nav.screen.close), not an open.
 if [ "$screen" = "/" ]; then
-  exec dart run tool/orion_remote.dart dispatch id=nav.screen.close
+  exec "$here/orion.sh" dispatch id=nav.screen.close
 fi
 
-exec dart run tool/orion_remote.dart dispatch \
-  id=nav.screen.open payload="{\"screen\":\"$screen\"}"
+exec "$here/orion.sh" dispatch id=nav.screen.open payload="{\"screen\":\"$screen\"}"

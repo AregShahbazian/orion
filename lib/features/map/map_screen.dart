@@ -317,26 +317,26 @@ class _MapScreenState extends State<MapScreen> {
                     alignment: Alignment.bottomRight,
                     child: Padding(
                       padding: EdgeInsets.only(bottom: hudColumnBottomInset),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          PointerInterceptor(
-                            child: LocationFab(
+                      // One interceptor over the whole column so taps on the gap
+                      // between the buttons don't leak through to the map (web).
+                      child: PointerInterceptor(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            LocationFab(
                               enabled: _location.enabled,
                               trackingMode: _location.trackingMode,
                               onPressed: _onLocationTap,
                             ),
-                          ),
-                          const SizedBox(height: kHudControlGap),
-                          PointerInterceptor(
-                            child: HudButton(
+                            const SizedBox(height: kHudControlGap),
+                            HudButton(
                               semanticLabel: 'Settings',
                               onPressed: () => _interactions
                                   .dispatch(InteractionIds.settingsTap),
                               child: const Icon(Icons.settings),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),

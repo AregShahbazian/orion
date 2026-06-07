@@ -39,6 +39,30 @@ final GoRouter appRouter = GoRouter(
   ],
 );
 
+/// The current screen-navigation state, shared by the web (`orion.webnav`) and
+/// native (`ext.orion.webnav`) dev bridges so they report identically. Safe
+/// before the first route resolves (returns nulls rather than throwing).
+Map<String, Object?> routerNavState() {
+  final cfg = appRouter.routerDelegate.currentConfiguration;
+  if (cfg.matches.isEmpty) {
+    return {
+      'route': null,
+      'name': null,
+      'declaredUri': cfg.uri.toString(),
+      'canPop': false,
+      'stackDepth': 0,
+    };
+  }
+  final state = appRouter.state; // topmost match — the active screen
+  return {
+    'route': state.matchedLocation, // e.g. /settings
+    'name': state.name, // e.g. 'settings'
+    'declaredUri': cfg.uri.toString(),
+    'canPop': appRouter.canPop(),
+    'stackDepth': cfg.matches.length,
+  };
+}
+
 /// Wire the navigation interaction ids to [router] so screens open/close through
 /// the [InteractionController] both ways — captured in the log and drivable
 /// programmatically (web `window.orion` / native `ext.orion.*`). App-lifetime;
