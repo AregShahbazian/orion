@@ -4,6 +4,7 @@ import 'dart:js_interop_unsafe';
 
 import 'package:web/web.dart' as web;
 
+import '../../app/router.dart';
 import '../../features/map/map_navigation_controller.dart';
 import 'interaction.dart';
 import 'interaction_controller.dart';
@@ -53,6 +54,15 @@ void signalMapReady() {
 /// "right" when north-up). [dispatch] (and the move helpers) return a Promise so
 /// scripts can `await` and sequence steps; re-read `mapnav.camera()` once the map
 /// settles to see the result.
+///
+/// Screen navigation state lives under `orion.webnav` — the router's location vs.
+/// the browser URL (which `push` doesn't always rewrite):
+///
+/// ```js
+/// orion.webnav.dump()       // → {route, name, declaredUri, canPop, stackDepth, browserUrl, browserPath}
+/// orion.webnav.location()   // → the active route incl. imperative push, e.g. "/settings"
+/// await orion.webnav.to('settings')   // navigate to a screen ('/' = back to map)
+/// ```
 ///
 /// Installed on every build, all platforms including release/prod.
 void installInteractionConsoleBridge(
@@ -179,6 +189,59 @@ void installInteractionConsoleBridge(
           afterMove(nav.panTo(lat.toDartDouble, lng.toDartDouble))).toJS);
 
   api.setProperty('mapnav'.toJS, mapnav);
+
+  // --- orion.webnav: inspect screen navigation (go_router) vs the browser URL.
+  // Handy because `push` doesn't always rewrite the address bar even though the
+  // router's own location changed — this shows both side by side.
+
+  final webnav = JSObject();
+
+  Map<String, Object?> navState() {
+    final cfg = appRouter.routerDelegate.currentConfiguration;
+    final state = appRouter.state; // the topmost match — reflects imperative push
+    return {
+      'route': state.matchedLocation, // semantically active route, e.g. /settings
+      'name': state.name, // its route name, e.g. 'settings'
+      'declaredUri': cfg.uri.toString(), // last declarative `go` location only
+      'canPop': appRouter.canPop(), // is there a screen to pop back from?
+      'stackDepth': cfg.matches.length, // number of matched routes on the stack
+      'browserUrl': web.window.location.href, // what the address bar shows
+      'browserPath': web.window.location.pathname,
+    };
+  }
+
+  // `orion.webnav.dump()` — log the nav state and return it as a JS object.
+  webnav.setProperty('dump'.toJS, (() {
+    final state = navState();
+    web.console.log(state.jsify());
+    return state.jsify();
+  }).toJS);
+
+  // `orion.webnav.location()` — the semantically active route (incl. imperative
+  // pushes), e.g. "/settings".
+  webnav.setProperty(
+      'location'.toJS, (() => appRouter.state.matchedLocation.toJS).toJS);
+
+  // `orion.webnav.to(screen)` — navigate to a screen by name (dispatches
+  // nav.screen.open); `to('/')` goes back to the map (nav.screen.close). Mirrors
+  // scripts/mobile/navto.sh. Returns a Promise.
+  webnav.setProperty('to'.toJS, ((JSString screen) {
+    final s = screen.toDart;
+    Future<JSAny?> run() async {
+      if (s == '/') {
+        await bus.dispatch(InteractionIds.navScreenClose,
+            origin: InteractionOrigin.programmatic);
+      } else {
+        await bus.dispatch(InteractionIds.navScreenOpen,
+            origin: InteractionOrigin.programmatic, payload: {'screen': s});
+      }
+      return null;
+    }
+
+    return run().toJS;
+  }).toJS);
+
+  api.setProperty('webnav'.toJS, webnav);
 
   web.window.setProperty('orion'.toJS, api);
 }

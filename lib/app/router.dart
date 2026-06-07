@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:go_router/go_router.dart';
 
 import '../core/interaction/interaction_controller.dart';
@@ -45,11 +47,16 @@ final GoRouter appRouter = GoRouter(
 /// programmatically (web `window.orion` / native `ext.orion.*`). App-lifetime;
 /// never unregistered. Call once at startup.
 void registerNavInteractions(GoRouter router, [InteractionController? ic]) {
+  // `push` returns a Future that completes only when the pushed screen is
+  // *popped* — so handlers must NOT return/await it, or the dispatch (and any
+  // remote RPC waiting on it) would hang until the user goes back. Fire it and
+  // return immediately; the screen is shown synchronously.
   final interactions = ic ?? InteractionController.instance;
   interactions
     ..register(InteractionIds.settingsTap, (_) {
       _navObserver.markDispatched();
-      return router.push('/settings');
+      unawaited(router.push('/settings'));
+      return null;
     })
     ..register(InteractionIds.navScreenOpen, (payload) {
       final screen = payload?['screen'] as String?;
@@ -58,7 +65,8 @@ void registerNavInteractions(GoRouter router, [InteractionController? ic]) {
         throw ArgumentError('Unknown screen: $screen');
       }
       _navObserver.markDispatched();
-      return router.push(path);
+      unawaited(router.push(path));
+      return null;
     })
     ..register(InteractionIds.navScreenClose, (_) {
       // Only mark when we'll actually pop, else the flag would wrongly swallow

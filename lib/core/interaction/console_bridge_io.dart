@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 
+import '../../app/router.dart';
 import '../../features/map/map_navigation_controller.dart';
 import 'interaction.dart';
 import 'interaction_controller.dart';
@@ -27,6 +28,7 @@ void signalMapReady() {}
 /// ext.orion.zoomBy    { delta }                  // relative zoom (+in / -out)
 /// ext.orion.rotateBy  { degrees }                // relative rotate
 /// ext.orion.tiltBy    { degrees }                // relative tilt
+/// ext.orion.webnav                               // → current screen route + nav state
 /// ```
 ///
 /// Service extensions only exist where the VM Service is attached — debug and
@@ -104,6 +106,23 @@ void installInteractionConsoleBridge(
   _register('ext.orion.tiltBy', (_, params) async {
     await nav.tiltBy(_double(params, 'degrees'));
     return _ok({'camera': nav.camera?.toMap()});
+  });
+
+  // --- Screen navigation (go_router) ---
+
+  // The semantically active route (incl. imperative `push`) lives in the
+  // topmost match (`appRouter.state`), not in `currentConfiguration.uri` (which
+  // only tracks the last declarative `go`). No browser URL on native.
+  _register('ext.orion.webnav', (_, _) async {
+    final cfg = appRouter.routerDelegate.currentConfiguration;
+    final state = appRouter.state;
+    return _ok({
+      'route': state.matchedLocation,
+      'name': state.name,
+      'declaredUri': cfg.uri.toString(),
+      'canPop': appRouter.canPop(),
+      'stackDepth': cfg.matches.length,
+    });
   });
 }
 
