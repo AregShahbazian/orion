@@ -1,16 +1,22 @@
+import 'dart:convert';
 import 'dart:io';
 
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
 
-/// Mobile/desktop: write the GPX to a temp file and open the system share sheet
-/// so the user picks where it goes (Files, Drive, email, …).
+/// Mobile/desktop: open the native "save as" dialog so the user picks a real
+/// on-device location (Downloads, Files, an SD card, …) — not a share target.
+/// On mobile `saveFile` writes the bytes at the chosen spot; on desktop it only
+/// returns the chosen path, so we write it ourselves.
 Future<void> exportGpx(String filename, String gpx) async {
-  final dir = await getTemporaryDirectory();
-  final file = File('${dir.path}/$filename');
-  await file.writeAsString(gpx);
-  await Share.shareXFiles(
-    [XFile(file.path, mimeType: 'application/gpx+xml')],
-    subject: filename,
+  final bytes = utf8.encode(gpx);
+  final path = await FilePicker.platform.saveFile(
+    dialogTitle: 'Save GPX',
+    fileName: filename,
+    type: FileType.any,
+    bytes: bytes,
   );
+  if (path == null) return; // user cancelled
+  if (Platform.isLinux || Platform.isMacOS || Platform.isWindows) {
+    await File(path).writeAsBytes(bytes);
+  }
 }

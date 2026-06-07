@@ -57,6 +57,11 @@ class LocationController extends ChangeNotifier {
   // on it so a follow-center transition finishes before the zoom starts.
   Completer<void>? _idleCompleter;
 
+  // Single-flight guard for [onFabLongPressed]: the in-flight press owns
+  // [_idleCompleter] and the zoom animation, so a second press is dropped rather
+  // than overwriting the completer and racing two camera animations.
+  bool _longPressBusy = false;
+
   /// Bind the map controller once it's created.
   void attach(MapLibreMapController map) => _map = map;
 
@@ -100,18 +105,26 @@ class LocationController extends ChangeNotifier {
   /// Follow→Follow+Heading+zoom, Follow+Heading→Off (no zoom). Returns the tap's
   /// result so the caller can surface the permission SnackBar.
   Future<LocationTapResult> onFabLongPressed() async {
-    // Arm before the press so we don't miss the center transition's settle.
-    _idleCompleter = Completer<void>();
-    final result = await onFabPressed();
-    // Only zoom when the press left us following (and permission wasn't denied).
-    if (isFollowing) {
-      // Let the press's center-on-user transition settle first; zooming into a
-      // running follow-center transition makes the two camera animations race
-      // and the zoom stops short (Off path).
-      await _awaitMapIdle();
-      await _zoomToDefaultKeepingFollow();
+    // A press is already mid-flight (the zoom animation can outlast the gesture);
+    // drop this one so it doesn't stomp the in-flight completer/animation.
+    if (_longPressBusy) return LocationTapResult.cycled;
+    _longPressBusy = true;
+    try {
+      // Arm before the press so we don't miss the center transition's settle.
+      _idleCompleter = Completer<void>();
+      final result = await onFabPressed();
+      // Only zoom when the press left us following (and permission wasn't denied).
+      if (isFollowing) {
+        // Let the press's center-on-user transition settle first; zooming into a
+        // running follow-center transition makes the two camera animations race
+        // and the zoom stops short (Off path).
+        await _awaitMapIdle();
+        await _zoomToDefaultKeepingFollow();
+      }
+      return result;
+    } finally {
+      _longPressBusy = false;
     }
-    return result;
   }
 
   /// Zoom to [kDefaultFollowZoom] without losing the follow. A zoom issued while

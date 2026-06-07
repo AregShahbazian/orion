@@ -70,7 +70,7 @@ class _TracksScreenState extends State<TracksScreen> {
           child: child,
         ),
         child: IconButton(
-          icon: const Icon(Icons.file_upload),
+          icon: const Icon(Icons.file_download),
           tooltip: 'Import GPX',
           onPressed: () => InteractionController.instance
               .dispatch(InteractionIds.tracksImportStart),

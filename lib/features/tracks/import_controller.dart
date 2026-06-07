@@ -20,6 +20,16 @@ class ImportController extends ChangeNotifier {
 
   final TracksRepository _repo;
 
+  /// Hard ceiling on a single picked file. A real recorded track is well under
+  /// this (a ~600k-point GPX is ~64 MB); anything larger is a mistake or abuse,
+  /// and parsing it would balloon memory (file → string → DOM → point list →
+  /// worker copy). Rejected up front with a friendly message.
+  static const int _maxImportBytes = 64 * 1024 * 1024;
+
+  /// One import at a time: [run] shares a single parse worker and the [_pending]
+  /// counter, so re-entrant runs would mix files and corrupt the badge.
+  bool _running = false;
+
   int _pending = 0;
 
   /// Total tracks left to store across the current selection — set once all
@@ -29,8 +39,19 @@ class ImportController extends ChangeNotifier {
   int get pending => _pending;
 
   /// Open the file picker and import everything selected. Returns when the picked
-  /// files have been processed (no-op if the user cancels).
+  /// files have been processed (no-op if the user cancels, or an import is already
+  /// in flight).
   Future<void> run() async {
+    if (_running) return;
+    _running = true;
+    try {
+      await _run();
+    } finally {
+      _running = false;
+    }
+  }
+
+  Future<void> _run() async {
     final FilePickerResult? result;
     try {
       // Android's picker filters by MIME and has none for `gpx`, so a custom
@@ -102,8 +123,22 @@ class ImportController extends ChangeNotifier {
       _fail('Could not read ${file.name}');
       return const [];
     }
-    // Off-UI parse: a background isolate on mobile, a real Web Worker on web.
-    final tracks = await parseGpxOffThread(bytes);
+    if (bytes.length > _maxImportBytes) {
+      _fail('${file.name} is too large to import '
+          '(${_maxImportBytes ~/ (1024 * 1024)} MB max)');
+      return const [];
+    }
+    // Off-UI parse: a background isolate on mobile, a real Web Worker on web. A
+    // worker that fails to spawn / crashes (or a parse blow-up) surfaces as a
+    // friendly error instead of an unhandled exception out of the import loop.
+    final List<ParsedTrack> tracks;
+    try {
+      tracks = await parseGpxOffThread(bytes);
+    } catch (e) {
+      _fail('Could not parse ${file.name}');
+      devLog('import', 'parse error: $e');
+      return const [];
+    }
     if (tracks.isEmpty) _fail('No tracks found in ${file.name}');
     return tracks;
   }

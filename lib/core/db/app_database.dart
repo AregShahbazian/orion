@@ -44,7 +44,27 @@ class AppDatabase extends _$AppDatabase {
   static final AppDatabase instance = AppDatabase();
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  /// Index the points by `(track_id, seq)` — SQLite does not index a foreign-key
+  /// child column on its own, so without this every [TracksRepository.getPoints]
+  /// (and every cascade delete) full-scans the whole points table. The composite
+  /// covers both the `where track_id = ?` filter and the `order by seq`.
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) async {
+          await m.createAll();
+          await _createPointIndex();
+        },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) await _createPointIndex();
+        },
+      );
+
+  Future<void> _createPointIndex() => customStatement(
+        'CREATE INDEX IF NOT EXISTS idx_track_points_track_seq '
+        'ON track_points (track_id, seq)',
+      );
 
   /// Cross-platform connection: a file under the app documents dir on native,
   /// the WASM build (OPFS/IndexedDB) on web. The web assets (`sqlite3.wasm`,

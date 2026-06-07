@@ -44,6 +44,12 @@ final GoRouter appRouter = GoRouter(
             GoRoute(
               path: ':id',
               name: 'trackDetail',
+              // URLs are user-addressable (deep link, typed, refreshed), so a
+              // non-numeric id must not reach int.parse — fall back to the list.
+              redirect: (context, state) =>
+                  int.tryParse(state.pathParameters['id'] ?? '') == null
+                      ? '/tracks'
+                      : null,
               builder: (context, state) => TrackDetailScreen(
                 trackId: int.parse(state.pathParameters['id']!),
               ),
