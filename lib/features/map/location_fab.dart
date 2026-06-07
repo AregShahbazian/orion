@@ -35,6 +35,7 @@ class LocationFab extends StatelessWidget {
     final following = trackingMode != MyLocationTrackingMode.none;
     return HudButton(
       onPressed: onPressed,
+      semanticLabel: 'My location',
       foregroundColor:
           following ? Theme.of(context).colorScheme.primary : null,
       child: Icon(_icon),

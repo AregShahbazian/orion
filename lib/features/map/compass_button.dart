@@ -35,6 +35,7 @@ class CompassButton extends StatelessWidget {
               ? const SizedBox.shrink()
               : HudButton(
                   onPressed: onReset,
+                  semanticLabel: 'Reset map orientation',
                   child: ValueListenableBuilder<double>(
                     valueListenable: bearing,
                     builder: (context, deg, child) => Transform.rotate(

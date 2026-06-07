@@ -29,9 +29,12 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <!-- MapLibre GL JS — required for maplibre_gl on web (version per plugin 0.26.1) -->
-  <script src='https://unpkg.com/maplibre-gl@^5.24.0/dist/maplibre-gl.js'></script>
-  <link href='https://unpkg.com/maplibre-gl@^5.24.0/dist/maplibre-gl.css' rel='stylesheet'/>
+  <!-- MapLibre GL JS — required for maplibre_gl on web (version per plugin 0.26.1).
+       Pinned exact (not ^): the CSS below hides maplibre's own attribution/
+       geolocate via its internal class names, so an unattended minor bump from
+       the CDN could silently break that hiding. Bump deliberately + retest. -->
+  <script src='https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js'></script>
+  <link href='https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css' rel='stylesheet'/>
 
   <style>
     /* The maplibre_gl plugin's web attribution is uncontrollable (no compact,
