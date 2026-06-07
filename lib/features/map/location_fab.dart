@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
+import 'hud_button.dart';
+
 /// The my-location / follow-me FAB (ported from `track`'s location FAB). A pure
 /// view of [enabled] + [trackingMode]; its parent rebuilds it when those change.
 /// Icon reflects the state; tint goes primary while following.
@@ -31,8 +33,7 @@ class LocationFab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final following = trackingMode != MyLocationTrackingMode.none;
-    return FloatingActionButton.small(
-      heroTag: 'location',
+    return HudButton(
       onPressed: onPressed,
       foregroundColor:
           following ? Theme.of(context).colorScheme.primary : null,

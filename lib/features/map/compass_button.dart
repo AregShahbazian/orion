@@ -3,6 +3,8 @@ import 'dart:math' show pi;
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
+import 'hud_button.dart';
+
 /// Reset-orientation control: a compass needle that rotates to the current map
 /// bearing and, on tap, restores the default orientation (bearing 0, tilt 0).
 ///
@@ -20,7 +22,7 @@ class CompassButton extends StatelessWidget {
   final ValueListenable<bool> visible;
   final VoidCallback onReset;
 
-  static const double _size = 44;
+  static const double _size = HudButton.size;
 
   @override
   Widget build(BuildContext context) {
@@ -31,32 +33,17 @@ class CompassButton extends StatelessWidget {
           duration: const Duration(milliseconds: 150),
           child: !isVisible
               ? const SizedBox.shrink()
-              : GestureDetector(
-                  onTap: onReset,
-                  child: Container(
-                    width: _size,
-                    height: _size,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 4,
-                          offset: Offset(0, 2),
-                        ),
-                      ],
+              : HudButton(
+                  onPressed: onReset,
+                  child: ValueListenableBuilder<double>(
+                    valueListenable: bearing,
+                    builder: (context, deg, child) => Transform.rotate(
+                      angle: -deg * (pi / 180),
+                      child: child,
                     ),
-                    child: ValueListenableBuilder<double>(
-                      valueListenable: bearing,
-                      builder: (context, deg, child) => Transform.rotate(
-                        angle: -deg * (pi / 180),
-                        child: child,
-                      ),
-                      child: const CustomPaint(
-                        size: Size(_size, _size),
-                        painter: _CompassNeedlePainter(),
-                      ),
+                    child: const CustomPaint(
+                      size: Size(_size, _size),
+                      painter: _CompassNeedlePainter(),
                     ),
                   ),
                 ),
