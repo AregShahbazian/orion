@@ -16,6 +16,24 @@ class InteractionIds {
   /// HUD settings cog tapped — open the settings screen.
   static const String settingsTap = 'hud.settings.tap';
 
+  /// HUD tracks button tapped — open the imported-tracks screen.
+  static const String hudTracksTap = 'hud.tracks.tap';
+
+  // Track import / export (Phase 6). The screen and its actions route through the
+  // bus both ways, so they're drivable from the dev bridges.
+
+  /// Open the file picker and import the selected GPX file(s). No payload.
+  static const String tracksImportStart = 'tracks.import.start';
+
+  /// Open a track's detail page. Payload `{id: int}`.
+  static const String tracksOpen = 'tracks.open';
+
+  /// Export a single track as GPX (share sheet / download). Payload `{id: int}`.
+  static const String tracksExport = 'tracks.export';
+
+  /// Delete ALL stored tracks (dev/data action). No payload. Destructive.
+  static const String dataTracksClear = 'data.tracks.clear';
+
   // App-screen navigation. Screens are child routes of the map route, so the map
   // stays mounted/alive beneath them; these open/close screens over it. See
   // `ai/phase-5/navigation/design.md`.
@@ -50,6 +68,11 @@ class InteractionIds {
     followMeTap,
     resetOrientationTap,
     settingsTap,
+    hudTracksTap,
+    tracksImportStart,
+    tracksOpen,
+    tracksExport,
+    dataTracksClear,
     navScreenOpen,
     navScreenClose,
     mapTrackingDismissed,

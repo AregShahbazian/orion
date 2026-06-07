@@ -330,6 +330,13 @@ class _MapScreenState extends State<MapScreen> {
                             ),
                             const SizedBox(height: kHudControlGap),
                             HudButton(
+                              semanticLabel: 'Tracks',
+                              onPressed: () => _interactions
+                                  .dispatch(InteractionIds.hudTracksTap),
+                              child: const Icon(Icons.route),
+                            ),
+                            const SizedBox(height: kHudControlGap),
+                            HudButton(
                               semanticLabel: 'Settings',
                               onPressed: () => _interactions
                                   .dispatch(InteractionIds.settingsTap),

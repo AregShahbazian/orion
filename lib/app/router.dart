@@ -4,6 +4,8 @@ import '../core/interaction/interaction_controller.dart';
 import '../core/interaction/interaction_ids.dart';
 import '../features/map/map_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/tracks/track_detail_screen.dart';
+import '../features/tracks/tracks_screen.dart';
 import 'nav_interaction_observer.dart';
 
 /// The single recorder of screen navigation: logs every push/pop (cog, in-app
@@ -33,6 +35,20 @@ final GoRouter appRouter = GoRouter(
           path: 'settings',
           name: 'settings',
           builder: (context, state) => const SettingsScreen(),
+        ),
+        GoRoute(
+          path: 'tracks',
+          name: 'tracks',
+          builder: (context, state) => const TracksScreen(),
+          routes: [
+            GoRoute(
+              path: ':id',
+              name: 'trackDetail',
+              builder: (context, state) => TrackDetailScreen(
+                trackId: int.parse(state.pathParameters['id']!),
+              ),
+            ),
+          ],
         ),
       ],
     ),
