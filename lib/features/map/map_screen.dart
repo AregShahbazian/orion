@@ -229,14 +229,17 @@ class _MapScreenState extends State<MapScreen> {
     // every partial option update (e.g. when location turns on) — its
     // interpretMapLibreMapOptions forces bottomRight whenever the position key
     // is absent from the diff. Fighting it makes the label visibly jump, so on
-    // web we let it live bottom-right and move the FAB to bottom-left instead.
+    // web we let it live bottom-right and lift the FAB above it instead.
     final pad = MediaQuery.paddingOf(context);
     final attributionMargins =
         Point(pad.left + kHudEdgeInset, pad.bottom + kHudEdgeInset);
     final attributionPosition = kIsWeb
         ? AttributionButtonPosition.bottomRight
         : AttributionButtonPosition.bottomLeft;
-    final fabAlignment = kIsWeb ? Alignment.bottomLeft : Alignment.bottomRight;
+    // FAB is always bottom-right. On web it sits above the bottom-right
+    // attribution label; on native (label is bottom-left) it's the lowest control.
+    const fabAlignment = Alignment.bottomRight;
+    final fabBottomInset = kIsWeb ? kHudAttributionClearance : 0.0;
 
     return Scaffold(
       body: Stack(
@@ -311,10 +314,13 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                   Align(
                     alignment: fabAlignment,
-                    child: LocationFab(
-                      enabled: _location.enabled,
-                      trackingMode: _location.trackingMode,
-                      onPressed: _onLocationTap,
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: fabBottomInset),
+                      child: LocationFab(
+                        enabled: _location.enabled,
+                        trackingMode: _location.trackingMode,
+                        onPressed: _onLocationTap,
+                      ),
                     ),
                   ),
                 ],
