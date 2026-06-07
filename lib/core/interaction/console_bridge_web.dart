@@ -25,7 +25,9 @@ void signalMapReady() {
 ///
 /// ```js
 /// await orion.ready                 // resolves when the map is usable
-/// await orion.dispatch('hud.followMe.tap')
+/// await orion.followMe()            // tap the location FAB (cycle follow mode)
+/// await orion.resetOrientation()    // tap the compass (north-up, flat)
+/// await orion.dispatch('hud.followMe.tap')                 // same, by raw id
 /// await orion.dispatch('map.zoom.changed', { zoom: 12 })   // resolves when the move settles
 /// orion.ids                         // → the valid interaction ids
 /// orion.logEvents(true)             // start echoing each interaction to the log
@@ -76,6 +78,25 @@ void installInteractionConsoleBridge(
 
     return run().toJS;
   }).toJS);
+
+  // Named shortcuts for the common HUD taps, so callers don't hand-type the id:
+  // `await orion.followMe()`, `await orion.resetOrientation()`. Each is just
+  // `dispatch(id)` (origin=programmatic) and returns its Promise.
+  JSPromise<JSAny?> tap(String id) {
+    Future<JSAny?> run() async {
+      await bus.dispatch(id, origin: InteractionOrigin.programmatic);
+      return null;
+    }
+
+    return run().toJS;
+  }
+
+  // Toggle/cycle follow-me (the location FAB).
+  api.setProperty(
+      'followMe'.toJS, (() => tap(InteractionIds.followMeTap)).toJS);
+  // Reset orientation — north-up, flat (the compass button).
+  api.setProperty('resetOrientation'.toJS,
+      (() => tap(InteractionIds.resetOrientationTap)).toJS);
 
   api.setProperty(
       'ids'.toJS, [for (final id in InteractionIds.all) id.toJS].toJS);

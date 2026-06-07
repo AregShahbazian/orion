@@ -18,6 +18,8 @@ void signalMapReady() {}
 /// ```
 /// ext.orion.ids                                  // → valid interaction ids
 /// ext.orion.dispatch  { id, payload }            // fire one interaction
+/// ext.orion.followMe                             // tap the location FAB
+/// ext.orion.resetOrientation                     // tap the compass (north-up)
 /// ext.orion.logEvents { on }                     // toggle per-event logging
 /// ext.orion.dump                                 // → the captured buffer
 /// ext.orion.camera                               // → the live camera | null
@@ -44,6 +46,19 @@ void installInteractionConsoleBridge(
     await bus.dispatch(id,
         origin: InteractionOrigin.programmatic, payload: _payload(params));
     return _ok({'dispatched': id});
+  });
+
+  // Named shortcuts for the common HUD taps (mirror orion.followMe / .resetOrientation).
+  _register('ext.orion.followMe', (_, _) async {
+    await bus.dispatch(InteractionIds.followMeTap,
+        origin: InteractionOrigin.programmatic);
+    return _ok({'dispatched': InteractionIds.followMeTap});
+  });
+
+  _register('ext.orion.resetOrientation', (_, _) async {
+    await bus.dispatch(InteractionIds.resetOrientationTap,
+        origin: InteractionOrigin.programmatic);
+    return _ok({'dispatched': InteractionIds.resetOrientationTap});
   });
 
   _register('ext.orion.logEvents', (_, params) async {

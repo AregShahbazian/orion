@@ -65,11 +65,16 @@ The app exposes `window.orion`. Use `browser_evaluate` to call it. This is the
 **reliable** way to trigger user actions:
 
 ```js
-await window.orion.dispatch('hud.followMe.tap')   // fire an action by ID
+await window.orion.followMe()                     // tap the location FAB (shortcut)
+await window.orion.resetOrientation()             // tap the compass (shortcut)
+await window.orion.dispatch('hud.followMe.tap')   // or fire any action by ID
 window.orion.ids                                  // list known action IDs
 window.orion.logEvents(true)                      // stream events to console
 window.orion.dump()                               // dump current state
 ```
+
+Common HUD taps have named shortcuts (`orion.followMe()`,
+`orion.resetOrientation()`); anything else goes through `orion.dispatch(id)`.
 
 Known action IDs seen so far: `hud.followMe.tap`, `hud.resetOrientation.tap`,
 `map.follow.dismissed`, `map.zoom.changed`, `map.scroll.changed`,
