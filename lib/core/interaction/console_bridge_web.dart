@@ -4,6 +4,7 @@ import 'dart:js_interop_unsafe';
 
 import 'package:web/web.dart' as web;
 
+import '../../features/map/map_navigation_controller.dart';
 import 'interaction.dart';
 import 'interaction_controller.dart';
 import 'interaction_ids.dart';
@@ -31,11 +32,29 @@ void signalMapReady() {
 /// orion.dump()                      // print the captured buffer; returns the records
 /// ```
 ///
-/// [dispatch] returns a Promise that resolves when the handler finishes (e.g. a
-/// camera animation completes), so scripts can sequence steps with `await`.
+/// Map navigation lives under `orion.mapnav` (a [MapNavigationController]) — read
+/// the live camera and make relative moves the raw ids can't express. Each move
+/// reads the current center, converts heading + distance to a target, and applies
+/// it:
+///
+/// ```js
+/// orion.mapnav.camera()             // → {lat, lng, zoom, bearing, tilt} | null
+/// await orion.mapnav.move(90, 5000) // move(heading°, metres): 5 km east
+/// await orion.mapnav.moveKm(90, 5)  // moveKm(heading°, km): same, in km
+/// await orion.mapnav.zoomBy(1)      // zoom in one level (negative = out)
+/// await orion.mapnav.rotateBy(45)   // rotate 45° clockwise
+/// await orion.mapnav.tiltBy(30)     // pitch 30°
+/// await orion.mapnav.panTo(13.75, 100.5)   // absolute center
+/// ```
+///
+/// Heading is compass degrees: 0 = N, 90 = E, 180 = S, 270 = W (east ≈ screen
+/// "right" when north-up). [dispatch] (and the move helpers) return a Promise so
+/// scripts can `await` and sequence steps; re-read `mapnav.camera()` once the map
+/// settles to see the result.
 ///
 /// Installed on every build, all platforms including release/prod.
-void installInteractionConsoleBridge(InteractionController bus) {
+void installInteractionConsoleBridge(
+    InteractionController bus, MapNavigationController nav) {
   final api = JSObject();
 
   api.setProperty('dispatch'.toJS, ((JSString id, [JSAny? payload]) {
@@ -91,6 +110,54 @@ void installInteractionConsoleBridge(InteractionController bus) {
   }
 
   api.setProperty('ready'.toJS, ready().toJS);
+
+  // --- orion.mapnav: live-camera reads + relative moves (MapNavigationController).
+
+  final mapnav = JSObject();
+
+  // `orion.mapnav.camera()` — the live camera as a flat object, or null if the
+  // map isn't ready yet.
+  mapnav.setProperty('camera'.toJS, (() => nav.camera?.toMap().jsify()).toJS);
+
+  // Each move returns a Promise resolving (best-effort to the current camera)
+  // once the dispatch handler runs, so callers can `await`. Re-read camera() after
+  // the map settles for the final position.
+  JSPromise<JSAny?> afterMove(Future<void> move) {
+    Future<JSAny?> run() async {
+      await move;
+      return nav.camera?.toMap().jsify();
+    }
+
+    return run().toJS;
+  }
+
+  // move(heading°, metres) / moveKm(heading°, km): travel from the current center
+  // along the compass heading. 0 = N, 90 = E, 180 = S, 270 = W.
+  mapnav.setProperty(
+      'move'.toJS,
+      ((JSNumber heading, JSNumber meters) => afterMove(nav.moveBy(
+          meters: meters.toDartDouble,
+          headingDegrees: heading.toDartDouble))).toJS);
+  mapnav.setProperty(
+      'moveKm'.toJS,
+      ((JSNumber heading, JSNumber km) => afterMove(nav.moveBy(
+          meters: km.toDartDouble * 1000,
+          headingDegrees: heading.toDartDouble))).toJS);
+
+  mapnav.setProperty('zoomBy'.toJS,
+      ((JSNumber delta) => afterMove(nav.zoomBy(delta.toDartDouble))).toJS);
+  mapnav.setProperty(
+      'rotateBy'.toJS,
+      ((JSNumber degrees) => afterMove(nav.rotateBy(degrees.toDartDouble)))
+          .toJS);
+  mapnav.setProperty('tiltBy'.toJS,
+      ((JSNumber degrees) => afterMove(nav.tiltBy(degrees.toDartDouble))).toJS);
+  mapnav.setProperty(
+      'panTo'.toJS,
+      ((JSNumber lat, JSNumber lng) =>
+          afterMove(nav.panTo(lat.toDartDouble, lng.toDartDouble))).toJS);
+
+  api.setProperty('mapnav'.toJS, mapnav);
 
   web.window.setProperty('orion'.toJS, api);
 }

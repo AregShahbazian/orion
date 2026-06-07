@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 
+import '../../features/map/map_navigation_controller.dart';
 import 'interaction.dart';
 import 'interaction_controller.dart';
 import 'interaction_ids.dart';
@@ -19,11 +20,17 @@ void signalMapReady() {}
 /// ext.orion.dispatch  { id, payload }            // fire one interaction
 /// ext.orion.logEvents { on }                     // toggle per-event logging
 /// ext.orion.dump                                 // → the captured buffer
+/// ext.orion.camera                               // → the live camera | null
+/// ext.orion.moveBy    { meters, heading }        // relative move (heading 0=N,90=E)
+/// ext.orion.zoomBy    { delta }                  // relative zoom (+in / -out)
+/// ext.orion.rotateBy  { degrees }                // relative rotate
+/// ext.orion.tiltBy    { degrees }                // relative tilt
 /// ```
 ///
 /// Service extensions only exist where the VM Service is attached — debug and
 /// profile builds. In a release AOT build these registrations are inert.
-void installInteractionConsoleBridge(InteractionController bus) {
+void installInteractionConsoleBridge(
+    InteractionController bus, MapNavigationController nav) {
   _register('ext.orion.ids', (_, _) async => _ok({'ids': InteractionIds.all.toList()}));
 
   _register('ext.orion.dispatch', (_, params) async {
@@ -56,7 +63,38 @@ void installInteractionConsoleBridge(InteractionController bus) {
             },
         ],
       }));
+
+  // --- Map navigation (MapNavigationController) ---
+
+  _register('ext.orion.camera', (_, _) async => _ok({'camera': nav.camera?.toMap()}));
+
+  _register('ext.orion.moveBy', (_, params) async {
+    await nav.moveBy(
+      meters: _double(params, 'meters'),
+      headingDegrees: _double(params, 'heading'),
+    );
+    return _ok({'camera': nav.camera?.toMap()});
+  });
+
+  _register('ext.orion.zoomBy', (_, params) async {
+    await nav.zoomBy(_double(params, 'delta'));
+    return _ok({'camera': nav.camera?.toMap()});
+  });
+
+  _register('ext.orion.rotateBy', (_, params) async {
+    await nav.rotateBy(_double(params, 'degrees'));
+    return _ok({'camera': nav.camera?.toMap()});
+  });
+
+  _register('ext.orion.tiltBy', (_, params) async {
+    await nav.tiltBy(_double(params, 'degrees'));
+    return _ok({'camera': nav.camera?.toMap()});
+  });
 }
+
+/// Parse a numeric service-extension param (all params arrive as strings).
+double _double(Map<String, String> params, String key) =>
+    double.parse(params[key] ?? '0');
 
 /// `payload` arrives as a JSON string (service-extension params are all
 /// strings); decode it to the map the bus expects.

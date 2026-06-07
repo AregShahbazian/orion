@@ -77,6 +77,37 @@ Known action IDs seen so far: `hud.followMe.tap`, `hud.resetOrientation.tap`,
 
 Read console output with `browser_console_messages`.
 
+### Map navigation — `orion.mapnav`
+
+For reading the live camera and making **relative** moves (which the absolute
+`map.*.changed` ids can't express), use the `orion.mapnav` namespace (backed by
+`MapNavigationController`). Each move reads the current center, converts heading +
+distance into a target, and dispatches it through the bus (so it's logged):
+
+```js
+orion.mapnav.camera()              // → {lat, lng, zoom, bearing, tilt} | null
+await orion.mapnav.move(90, 5000)  // move(heading°, metres) — 5 km east
+await orion.mapnav.moveKm(90, 5)   // moveKm(heading°, km) — same
+await orion.mapnav.zoomBy(1)       // relative zoom (negative = out)
+await orion.mapnav.rotateBy(45)    // relative rotate, clockwise degrees
+await orion.mapnav.tiltBy(30)      // relative pitch degrees
+await orion.mapnav.panTo(13.75, 100.5)  // absolute center
+```
+
+Heading is compass degrees: **0 = N, 90 = E, 180 = S, 270 = W** (east ≈ screen
+"right" when north-up).
+
+**Caveat — stale camera after a move.** MapLibre web resolves the camera
+animation future *before* `cameraPosition` reflects the new spot, so the value a
+move *returns* (and an immediate `camera()`) may be mid-flight. Re-read
+`orion.mapnav.camera()` after the map settles for the final position. Discrete,
+hand-typed calls read the correct settled center, so chaining by hand is fine;
+rapid back-to-back relative moves in one script can compound off a stale read.
+
+On native (debug/profile), the same surface is exposed as VM-service extensions
+(`ext.orion.camera`, `ext.orion.moveBy {meters, heading}`, `ext.orion.zoomBy`,
+`ext.orion.rotateBy`, `ext.orion.tiltBy`) — see `lib/core/interaction/console_bridge_io.dart`.
+
 ## What did NOT work
 
 - **Coordinate / element clicking.** `browser_click` needs a DOM element ref, but

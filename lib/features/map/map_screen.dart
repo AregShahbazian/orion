@@ -15,6 +15,7 @@ import 'location_controller.dart';
 import 'location_fab.dart';
 import 'map_attribution.dart';
 import 'map_constants.dart';
+import 'map_navigation_controller.dart';
 import 'offline_indicator.dart';
 
 /// Shown when location is permanently denied and the user taps the FAB. Kept as
@@ -123,6 +124,7 @@ class _MapScreenState extends State<MapScreen> {
       ..unregister(InteractionIds.mapRotate)
       ..unregister(InteractionIds.mapTilt);
     _controller?.removeListener(_onCameraChanged);
+    MapNavigationController.instance.detach();
     _location.removeListener(_onLocationChanged);
     _location.dispose();
     _bearing.dispose();
@@ -133,6 +135,9 @@ class _MapScreenState extends State<MapScreen> {
   void _onMapCreated(MapLibreMapController controller) {
     _controller = controller;
     _location.attach(controller);
+    // Let the console/VM-service bridge read the live camera and drive relative
+    // moves (orion.camera / orion.moveBy / ...).
+    MapNavigationController.instance.attach(controller);
     controller.addListener(_onCameraChanged);
   }
 
