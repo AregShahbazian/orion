@@ -12,11 +12,15 @@ class LocationFab extends StatelessWidget {
     required this.enabled,
     required this.trackingMode,
     required this.onPressed,
+    this.onLongPress,
   });
 
   final bool enabled;
   final MyLocationTrackingMode trackingMode;
   final VoidCallback onPressed;
+
+  /// Long-press: center on the user and zoom to the default follow zoom.
+  final VoidCallback? onLongPress;
 
   IconData get _icon {
     if (!enabled) return Icons.location_disabled;
@@ -35,6 +39,7 @@ class LocationFab extends StatelessWidget {
     final following = trackingMode != MyLocationTrackingMode.none;
     return HudButton(
       onPressed: onPressed,
+      onLongPress: onLongPress,
       semanticLabel: 'My location',
       foregroundColor:
           following ? Theme.of(context).colorScheme.primary : null,

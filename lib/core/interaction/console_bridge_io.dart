@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 
 import '../../app/router.dart';
 import '../../features/map/map_navigation_controller.dart';
+import '../../features/settings/settings_controller.dart';
 import 'interaction.dart';
 import 'interaction_controller.dart';
 import 'interaction_ids.dart';
@@ -64,9 +65,13 @@ void installInteractionConsoleBridge(
   });
 
   _register('ext.orion.logEvents', (_, params) async {
+    // Goes through the persisted setting now (not just bus.logEvents), so the
+    // toggle survives restarts like the in-app switch.
     final on = params['on'];
-    if (on != null) bus.logEvents = on == 'true';
-    return _ok({'logEvents': bus.logEvents});
+    if (on != null) {
+      await SettingsController.instance.setLogEventsEnabled(on == 'true');
+    }
+    return _ok({'logEvents': SettingsController.instance.logEventsEnabled});
   });
 
   _register('ext.orion.dump', (_, _) async => _ok({

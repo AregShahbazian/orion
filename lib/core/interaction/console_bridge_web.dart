@@ -6,6 +6,7 @@ import 'package:web/web.dart' as web;
 
 import '../../app/router.dart';
 import '../../features/map/map_navigation_controller.dart';
+import '../../features/settings/settings_controller.dart';
 import 'interaction.dart';
 import 'interaction_controller.dart';
 import 'interaction_ids.dart';
@@ -113,10 +114,11 @@ void installInteractionConsoleBridge(
       'ids'.toJS, [for (final id in InteractionIds.all) id.toJS].toJS);
 
   // Toggle the per-event log line at runtime: `orion.logEvents(true)`. Called
-  // with no arg, just reports the current state.
+  // with no arg, just reports the current state. Goes through the persisted
+  // setting now, so it survives restarts like the in-app switch.
   api.setProperty('logEvents'.toJS, ((JSBoolean? on) {
-    if (on != null) bus.logEvents = on.toDart;
-    return bus.logEvents.toJS;
+    if (on != null) SettingsController.instance.setLogEventsEnabled(on.toDart);
+    return SettingsController.instance.logEventsEnabled.toJS;
   }).toJS);
 
   // `orion.dump()` — log the captured buffer as readable lines and return the

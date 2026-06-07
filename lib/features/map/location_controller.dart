@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import 'location_service.dart';
+import 'map_constants.dart';
 
 /// Outcome of a location-FAB tap, so the UI can react (e.g. a SnackBar) without
 /// this controller depending on Flutter's widget/`BuildContext` layer.
@@ -52,8 +53,27 @@ class LocationController extends ChangeNotifier {
   // camera move provokes doesn't knock us back to off.
   bool _suppressDismiss = false;
 
+  // Completed by [onMapIdle] when the camera next settles; the long-press waits
+  // on it so a follow-center transition finishes before the zoom starts.
+  Completer<void>? _idleCompleter;
+
   /// Bind the map controller once it's created.
   void attach(MapLibreMapController map) => _map = map;
+
+  /// The map camera settled (driven by [MapScreen]'s onCameraIdle). Wakes any
+  /// long-press that's waiting for a center transition to finish.
+  void onMapIdle() {
+    final c = _idleCompleter;
+    if (c != null && !c.isCompleted) c.complete();
+  }
+
+  Future<void> _awaitMapIdle(
+      {Duration timeout = const Duration(milliseconds: 1500)}) async {
+    final c = _idleCompleter;
+    if (c == null) return;
+    await c.future.timeout(timeout, onTimeout: () {});
+    _idleCompleter = null;
+  }
 
   /// Enable the dot on startup. Native: request foreground permission first
   /// (denied → stays off, silently — no crash, no nagging). Web: just enable;
@@ -73,6 +93,49 @@ class LocationController extends ChangeNotifier {
       return LocationTapResult.cycled;
     }
     return _enableAndFollow();
+  }
+
+  /// Handle a FAB long-press: do the tap action first (cycle), then zoom to
+  /// [kDefaultFollowZoom] if that left us following. So Off→Follow+zoom,
+  /// Follow→Follow+Heading+zoom, Follow+Heading→Off (no zoom). Returns the tap's
+  /// result so the caller can surface the permission SnackBar.
+  Future<LocationTapResult> onFabLongPressed() async {
+    // Arm before the press so we don't miss the center transition's settle.
+    _idleCompleter = Completer<void>();
+    final result = await onFabPressed();
+    // Only zoom when the press left us following (and permission wasn't denied).
+    if (isFollowing) {
+      // Let the press's center-on-user transition settle first; zooming into a
+      // running follow-center transition makes the two camera animations race
+      // and the zoom stops short (Off path).
+      await _awaitMapIdle();
+      await _zoomToDefaultKeepingFollow();
+    }
+    return result;
+  }
+
+  /// Zoom to [kDefaultFollowZoom] without losing the follow. A zoom issued while
+  /// tracking is active gets cancelled by the native follow (it stomps the
+  /// animation), so free the camera first, zoom on it, then re-enter the follow
+  /// mode — same shape as [resetOrientation]. Re-entering re-centers on the user
+  /// at the new zoom (tracking only pans, never zooms).
+  Future<void> _zoomToDefaultKeepingFollow() async {
+    final map = _map;
+    if (map == null) return;
+    final mode = _trackingMode; // tracking or trackingCompass — restored after.
+    _suppressDismiss = true;
+    try {
+      await map.updateMyLocationTrackingMode(MyLocationTrackingMode.none);
+      await map.animateCamera(
+        CameraUpdate.zoomTo(kDefaultFollowZoom),
+        duration: kDefaultFollowZoomDuration,
+      );
+      await map.updateMyLocationTrackingMode(mode);
+      _trackingMode = mode;
+      _notify();
+    } finally {
+      _suppressDismiss = false;
+    }
   }
 
   Future<LocationTapResult> _enableAndFollow() async {

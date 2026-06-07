@@ -10,11 +10,25 @@ class InteractionIds {
   /// HUD location FAB tapped — enable / cycle follow mode.
   static const String followMeTap = 'hud.followMe.tap';
 
+  /// HUD location FAB long-pressed — center on the user and zoom to the default
+  /// follow zoom. In Follow+Heading it's a plain toggle to Off (no zoom).
+  static const String followMeLongPress = 'hud.followMe.longPress';
+
   /// HUD compass / reset button tapped — restore north-up, flat.
   static const String resetOrientationTap = 'hud.resetOrientation.tap';
 
   /// HUD settings cog tapped — open the settings screen.
   static const String settingsTap = 'hud.settings.tap';
+
+  // Settings toggles. Payload `{enabled: bool}`; dispatched by the settings
+  // screen's switches and re-dispatchable to flip a setting programmatically.
+
+  /// Long-press-to-zoom setting changed (gates the follow FAB long-press).
+  static const String settingsLongPressZoomSet = 'settings.longPressZoom.set';
+
+  /// Interaction-event logging setting changed (echoes each interaction to the
+  /// dev log). Replaces the old runtime-only `orion.logEvents(...)` toggle.
+  static const String settingsLogEventsSet = 'settings.logEvents.set';
 
   // App-screen navigation. Screens are child routes of the map route, so the map
   // stays mounted/alive beneath them; these open/close screens over it. See
@@ -48,8 +62,11 @@ class InteractionIds {
   /// Authoritative set of permitted ids.
   static const Set<String> all = {
     followMeTap,
+    followMeLongPress,
     resetOrientationTap,
     settingsTap,
+    settingsLongPressZoomSet,
+    settingsLogEventsSet,
     navScreenOpen,
     navScreenClose,
     mapTrackingDismissed,

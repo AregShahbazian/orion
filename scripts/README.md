@@ -26,6 +26,14 @@ Driving interactions on web needs no script: the console bridge exposes
   (`lib/core/interaction/console_bridge_io.dart`) over the VM Service via
   `tool/orion_remote.dart`. Everything is localhost-forwarded, so it keeps working
   across Wi-Fi/LAN switches. Service extensions exist only in debug/profile builds.
+  - **`orion.sh logs`** — stream `devLog` output (the VM `Logging` stream) as
+    plain lines until killed — the headless equivalent of DevTools' Logging tab,
+    so you don't have to copy records out of DevTools by hand. Filter to one
+    scope with `scope=`:
+    ```
+    ./scripts/mobile/orion.sh logs                # all orion.* records
+    ./scripts/mobile/orion.sh logs scope=location # only orion.location
+    ```
 - **`uninstall-from-zenfone.sh`** — adb uninstall from the test Zenfone.
 
 Screenshots (`*.png`) dropped here are gitignored.

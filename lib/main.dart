@@ -5,9 +5,15 @@ import 'app/router.dart';
 import 'core/interaction/console_bridge.dart';
 import 'core/interaction/interaction_controller.dart';
 import 'features/map/map_navigation_controller.dart';
+import 'features/settings/settings_controller.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Load persisted settings before the first frame so the toggles (long-press
+  // zoom, logEvents) are in effect from the start.
+  await SettingsController.instance.load();
+  registerSettingsInteractions(SettingsController.instance);
 
   // Edge-to-edge transparent system bars; [OrionApp] re-applies this on resume.
   applyEdgeToEdgeSystemUi();

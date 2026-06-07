@@ -9,6 +9,7 @@ class HudButton extends StatelessWidget {
     super.key,
     required this.child,
     required this.onPressed,
+    this.onLongPress,
     this.semanticLabel,
     this.backgroundColor = Colors.white,
     this.foregroundColor,
@@ -16,6 +17,10 @@ class HudButton extends StatelessWidget {
 
   final Widget child;
   final VoidCallback onPressed;
+
+  /// Optional long-press handler. Buttons that don't pass one have no long-press
+  /// behavior (the ink response just doesn't fire).
+  final VoidCallback? onLongPress;
 
   /// Accessibility label announced by screen readers (the controls are
   /// icon-only, so without this they'd be unlabelled).
@@ -66,6 +71,7 @@ class HudButton extends StatelessWidget {
                 child: InkWell(
                   customBorder: const CircleBorder(),
                   onTap: onPressed,
+                  onLongPress: onLongPress,
                 ),
               ),
             ),

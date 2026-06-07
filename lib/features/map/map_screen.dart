@@ -18,6 +18,7 @@ import 'map_attribution.dart';
 import 'map_constants.dart';
 import 'map_navigation_controller.dart';
 import 'offline_indicator.dart';
+import '../settings/settings_controller.dart';
 
 /// Shown when location is permanently denied and the user taps the FAB. Kept as
 /// a single constant for now; moves into l10n with the language-support phase.
@@ -42,6 +43,10 @@ class _MapScreenState extends State<MapScreen> {
   // FAB) whenever it changes so its enabled/trackingMode props stay in sync.
   final LocationController _location = LocationController();
 
+  // Persisted settings (e.g. whether long-press-to-zoom is enabled). We rebuild
+  // when they change so the FAB's long-press wiring stays in sync.
+  final SettingsController _settings = SettingsController.instance;
+
   // App-global command bus: every HUD/map interaction is dispatched through it,
   // so it's recorded/logged and can be driven programmatically (Phase 3).
   final InteractionController _interactions = InteractionController.instance;
@@ -64,6 +69,7 @@ class _MapScreenState extends State<MapScreen> {
     _initConnectivity();
     _location.addListener(_onLocationChanged);
     _location.init();
+    _settings.addListener(_onSettingsChanged);
     // Bind the HUD/map interactions to the existing controller methods. The UI
     // dispatches the ids below instead of calling these directly.
     _interactions
@@ -84,6 +90,12 @@ class _MapScreenState extends State<MapScreen> {
           (p) => _moveCamera(CameraUpdate.bearingTo(_num(p, 'bearing'))))
       ..register(InteractionIds.mapTilt,
           (p) => _moveCamera(CameraUpdate.tiltTo(_num(p, 'tilt'))));
+    // Long-press center+zoom is mobile-only — web already does this on a single
+    // tap, so the gesture isn't wired there.
+    if (!kIsWeb) {
+      _interactions.register(
+          InteractionIds.followMeLongPress, (_) => _location.onFabLongPressed());
+    }
   }
 
   /// Read a numeric payload field, tolerating the `num` that arrives from the
@@ -113,6 +125,10 @@ class _MapScreenState extends State<MapScreen> {
     if (mounted) setState(() {});
   }
 
+  void _onSettingsChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     _connSub?.cancel();
@@ -124,8 +140,10 @@ class _MapScreenState extends State<MapScreen> {
       ..unregister(InteractionIds.mapScroll)
       ..unregister(InteractionIds.mapRotate)
       ..unregister(InteractionIds.mapTilt);
+    if (!kIsWeb) _interactions.unregister(InteractionIds.followMeLongPress);
     _controller?.removeListener(_onCameraChanged);
     MapNavigationController.instance.detach();
+    _settings.removeListener(_onSettingsChanged);
     _location.removeListener(_onLocationChanged);
     _location.dispose();
     _bearing.dispose();
@@ -157,6 +175,9 @@ class _MapScreenState extends State<MapScreen> {
   void _onCameraIdle() {
     final pos = _controller?.cameraPosition;
     if (pos == null) return;
+    // Let the location controller know the camera settled (long-press waits on
+    // this before zooming).
+    _location.onMapIdle();
     final last = _lastIdleCamera;
     _lastIdleCamera = pos;
 
@@ -185,10 +206,23 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  /// Tap the location FAB; show the Settings recovery SnackBar if the user has
-  /// permanently denied permission (they asked for it by tapping).
+  /// Tap the location FAB — cycle follow mode.
   Future<void> _onLocationTap() async {
     final result = await _interactions.dispatch(InteractionIds.followMeTap);
+    _handleLocationResult(result);
+  }
+
+  /// Long-press the location FAB — center on the user and zoom to the default
+  /// follow zoom (Follow+Heading: plain toggle to Off).
+  Future<void> _onLocationLongPress() async {
+    final result =
+        await _interactions.dispatch(InteractionIds.followMeLongPress);
+    _handleLocationResult(result);
+  }
+
+  /// Show the Settings recovery SnackBar if the user has permanently denied
+  /// permission (they asked for it by tapping / long-pressing the FAB).
+  void _handleLocationResult(Object? result) {
     if (!mounted || result != LocationTapResult.permanentlyDenied) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -327,6 +361,13 @@ class _MapScreenState extends State<MapScreen> {
                               enabled: _location.enabled,
                               trackingMode: _location.trackingMode,
                               onPressed: _onLocationTap,
+                              // Mobile-only (web already center+zooms on a tap)
+                              // and only when the setting is on — off behaves
+                              // like before the feature (no long-press).
+                              onLongPress:
+                                  (kIsWeb || !_settings.longPressZoomEnabled)
+                                      ? null
+                                      : _onLocationLongPress,
                             ),
                             const SizedBox(height: kHudControlGap),
                             HudButton(

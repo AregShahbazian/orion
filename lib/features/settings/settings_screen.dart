@@ -1,17 +1,19 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../core/interaction/interaction_controller.dart';
 import '../../core/interaction/interaction_ids.dart';
+import 'settings_controller.dart';
 
-/// Phase 5 placeholder destination. Its only job is to prove navigate-away /
-/// navigate-back keeps the map alive (the body is intentionally empty for now —
-/// real settings arrive later). Opaque, so it covers the persistent map while
-/// it stays mounted underneath.
+/// The settings page. Lives over the persistent map (Phase 5). Each control
+/// dispatches its change through the interaction bus; [SettingsController] holds
+/// the persisted values and this rebuilds when they change.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final settings = SettingsController.instance;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
@@ -24,7 +26,33 @@ class SettingsScreen extends StatelessWidget {
               .dispatch(InteractionIds.navScreenClose),
         ),
       ),
-      body: const SizedBox.shrink(),
+      body: ListenableBuilder(
+        listenable: settings,
+        builder: (context, _) => ListView(
+          children: [
+            // Long-press-to-zoom is a native-only feature (web already
+            // center+zooms on a tap), so its toggle is hidden on web.
+            if (!kIsWeb)
+              SwitchListTile(
+                title: const Text('Long-press to zoom'),
+                subtitle: const Text(
+                    'Long-press the location button to center and zoom in.'),
+                value: settings.longPressZoomEnabled,
+                onChanged: (v) => InteractionController.instance.dispatch(
+                    InteractionIds.settingsLongPressZoomSet,
+                    payload: {'enabled': v}),
+              ),
+            SwitchListTile(
+              title: const Text('Log interaction events'),
+              subtitle: const Text(
+                  'Echo every interaction to the dev log (debugging).'),
+              value: settings.logEventsEnabled,
+              onChanged: (v) => InteractionController.instance.dispatch(
+                  InteractionIds.settingsLogEventsSet, payload: {'enabled': v}),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

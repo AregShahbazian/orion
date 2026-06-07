@@ -18,6 +18,12 @@
 //   ./scripts/mobile/orion.sh logEvents on=true
 //   ./scripts/mobile/orion.sh ids
 //   ./scripts/mobile/orion.sh dispatch id=map.zoom.changed payload={"zoom":12}
+//
+// The `logs` command is special: instead of an ext.orion call it subscribes to
+// the VM `Logging` stream (where `devLog` lands) and prints matching records as
+// plain lines until killed — the headless equivalent of DevTools' Logging tab.
+//   ./scripts/mobile/orion.sh logs              # all orion.* records
+//   ./scripts/mobile/orion.sh logs scope=location   # only orion.location
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -55,6 +61,28 @@ Future<void> main(List<String> argv) async {
   final rpc = _Rpc(socket);
 
   try {
+    // `logs` streams the VM Logging stream until killed instead of doing a
+    // one-shot ext.orion call.
+    if (cmd == 'logs') {
+      final scope = params['scope']; // optional: only `orion.<scope>` records.
+      rpc.onLogRecord = (logger, message) {
+        if (!logger.startsWith('orion')) return;
+        if (scope != null && logger != 'orion.$scope') return;
+        // devLog JSON-encodes maps; unwrap the outer quotes/escapes for reading.
+        var msg = message;
+        if (msg.startsWith('"') && msg.endsWith('"')) {
+          try {
+            msg = jsonDecode(msg) as String;
+          } catch (_) {}
+        }
+        stdout.writeln('$logger  $msg');
+      };
+      await rpc.call('streamListen', {'streamId': 'Logging'});
+      stderr.writeln('streaming $cmd (${scope ?? "orion.*"}) — ctrl-c to stop…');
+      await Completer<void>().future; // run until the process is killed.
+      return;
+    }
+
     final vm = await rpc.call('getVM');
     final isolates = (vm['isolates'] as List).cast<Map<String, Object?>>();
     if (isolates.isEmpty) throw 'no isolates on the VM';
@@ -104,6 +132,11 @@ class _Rpc {
   _Rpc(this._socket) {
     _socket.listen((data) {
       final msg = jsonDecode(data as String) as Map<String, Object?>;
+      // Stream events are notifications (no id, method `streamNotify`).
+      if (msg['method'] == 'streamNotify') {
+        _onStreamNotify(msg['params'] as Map<String, Object?>);
+        return;
+      }
       final id = msg['id'];
       final pending = _pending.remove(id);
       if (pending == null) return;
@@ -119,6 +152,27 @@ class _Rpc {
   final WebSocket _socket;
   final _pending = <String, Completer<Map<String, Object?>>>{};
   var _seq = 0;
+
+  /// Called for each `Logging` record with `(loggerName, message)`, both already
+  /// unwrapped from their VM `@Instance` envelopes.
+  void Function(String logger, String message)? onLogRecord;
+
+  void _onStreamNotify(Map<String, Object?> params) {
+    final event = params['event'] as Map<String, Object?>?;
+    if (event == null || event['kind'] != 'Logging') return;
+    final record = event['logRecord'] as Map<String, Object?>?;
+    if (record == null) return;
+    final logger = _asString(record['loggerName']);
+    final message = _asString(record['message']);
+    onLogRecord?.call(logger, message);
+  }
+
+  /// Pull `valueAsString` out of a VM `@Instance` envelope (what string fields
+  /// arrive wrapped in over the protocol).
+  static String _asString(Object? instance) =>
+      (instance is Map && instance['valueAsString'] is String)
+          ? instance['valueAsString'] as String
+          : '';
 
   Future<Map<String, Object?>> call(String method,
       [Map<String, Object?> params = const {}]) {
