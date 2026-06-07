@@ -37,3 +37,10 @@ Driving interactions on web needs no script: the console bridge exposes
 - **`uninstall-from-zenfone.sh`** — adb uninstall from the test Zenfone.
 
 Screenshots (`*.png`) dropped here are gitignored.
+
+## `dev/` — repo / worktree helpers
+- **`delete-working-tree.sh`** — remove the **current** linked worktree
+  (`git/orion-*`) and drop you back in the main checkout (`git/orion`). **Source
+  it** (a normal run can't cd your shell): `source scripts/dev/delete-working-tree.sh`.
+  Refuses from the main checkout or a non-`orion-*` dir; uses plain `git worktree
+  remove`, so it aborts on a dirty/untracked tree.
