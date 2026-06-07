@@ -26,25 +26,6 @@ class _TracksScreenState extends State<TracksScreen> {
       widget.importController ?? ImportController.instance;
 
   @override
-  void initState() {
-    super.initState();
-    _imports.lastError.addListener(_onError);
-  }
-
-  @override
-  void dispose() {
-    _imports.lastError.removeListener(_onError);
-    super.dispose();
-  }
-
-  void _onError() {
-    final message = _imports.lastError.value;
-    if (message == null || !mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-    _imports.lastError.value = null;
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -79,18 +60,21 @@ class _TracksScreenState extends State<TracksScreen> {
 
   /// Import icon with a badge showing how many tracks are still being processed.
   Widget _importAction() {
-    return AnimatedBuilder(
-      animation: _imports,
-      builder: (context, child) => Badge.count(
-        count: _imports.pending,
-        isLabelVisible: _imports.pending > 0,
-        child: child,
-      ),
-      child: IconButton(
-        icon: const Icon(Icons.file_upload),
-        tooltip: 'Import GPX',
-        onPressed: () => InteractionController.instance
-            .dispatch(InteractionIds.tracksImportStart),
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: AnimatedBuilder(
+        animation: _imports,
+        builder: (context, child) => Badge.count(
+          count: _imports.pending,
+          isLabelVisible: _imports.pending > 0,
+          child: child,
+        ),
+        child: IconButton(
+          icon: const Icon(Icons.file_upload),
+          tooltip: 'Import GPX',
+          onPressed: () => InteractionController.instance
+              .dispatch(InteractionIds.tracksImportStart),
+        ),
       ),
     );
   }

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
+import '../../core/ui/app_messenger.dart';
 import '../../core/interaction/console_bridge.dart';
 import '../../core/interaction/interaction_controller.dart';
 import '../../core/interaction/interaction_ids.dart';
@@ -189,14 +190,12 @@ class _MapScreenState extends State<MapScreen> {
   /// permanently denied permission (they asked for it by tapping).
   Future<void> _onLocationTap() async {
     final result = await _interactions.dispatch(InteractionIds.followMeTap);
-    if (!mounted || result != LocationTapResult.permanentlyDenied) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text(_kLocationDeniedMessage),
-        action: SnackBarAction(
-          label: 'Settings',
-          onPressed: _location.openAppSettings,
-        ),
+    if (result != LocationTapResult.permanentlyDenied) return;
+    showAppMessage(
+      _kLocationDeniedMessage,
+      action: SnackBarAction(
+        label: 'Settings',
+        onPressed: _location.openAppSettings,
       ),
     );
   }

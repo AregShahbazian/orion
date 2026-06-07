@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../core/log/dev_log.dart';
+import '../../core/ui/app_messenger.dart';
 import 'file_read.dart';
 import 'gpx_offthread.dart';
 import 'track_model.dart';
@@ -27,10 +28,6 @@ class ImportController extends ChangeNotifier {
   /// not a per-file count.
   int get pending => _pending;
 
-  /// Last import error, for the screen to surface as a SnackBar. The screen
-  /// clears it (sets `.value = null`) once shown.
-  final ValueNotifier<String?> lastError = ValueNotifier(null);
-
   /// Open the file picker and import everything selected. Returns when the picked
   /// files have been processed (no-op if the user cancels).
   Future<void> run() async {
@@ -53,6 +50,13 @@ class ImportController extends ChangeNotifier {
       return;
     }
     if (result == null) return; // cancelled
+
+    // Immediate feedback before the (brief) parse wait — track counts aren't
+    // known yet (they need the parse), so the message is by file.
+    final files = result.files;
+    showAppMessage(files.length == 1
+        ? 'Importing ${files.single.name}…'
+        : 'Importing ${files.length} files…');
 
     // Parse each file off the UI isolate (compute = a real background isolate on
     // mobile, so the UI doesn't freeze). The badge climbs toward the total as
@@ -106,12 +110,6 @@ class ImportController extends ChangeNotifier {
 
   void _fail(String message) {
     devLog('import', message);
-    lastError.value = message;
-  }
-
-  @override
-  void dispose() {
-    lastError.dispose();
-    super.dispose();
+    showAppMessage(message);
   }
 }

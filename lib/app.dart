@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app/router.dart';
+import 'core/ui/app_messenger.dart';
 
 /// Draw under the status/navigation bars and make them transparent, so the map
 /// fills the screen and HUD insets come from SafeArea. Re-applied on resume:
@@ -45,6 +46,7 @@ class _OrionAppState extends State<OrionApp> with WidgetsBindingObserver {
     return MaterialApp.router(
       title: 'Orion',
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: appMessengerKey,
       routerConfig: appRouter,
     );
   }
