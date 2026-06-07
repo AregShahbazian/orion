@@ -17,6 +17,12 @@ feature backlog, dependency references) live in `ai/`, which resolves to
 
 See `~/.claude/programming.md` for the centralized `~/ai/<repo>/` layout and rules.
 
+## Debugging the web app
+
+- `docs/playwright-testing.md` — how to launch the web dev server and drive the
+  running app with the Playwright MCP (console bridge, screenshots, what works /
+  doesn't). Follow this when asked to "debug with Playwright".
+
 ## Rules
 
 - **Never push unless explicitly told to.** Do not run `git push` on your own.

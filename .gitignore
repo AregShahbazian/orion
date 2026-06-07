@@ -43,3 +43,6 @@ app.*.map.json
 # Claude Code local / transient state
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
+
+# Playwright debug screenshots (see docs/playwright-testing.md)
+.playwright-screenshots/
