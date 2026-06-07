@@ -33,44 +33,19 @@
   <script src='https://unpkg.com/maplibre-gl@^5.24.0/dist/maplibre-gl.js'></script>
   <link href='https://unpkg.com/maplibre-gl@^5.24.0/dist/maplibre-gl.css' rel='stylesheet'/>
 
-  <!-- The maplibre_gl plugin creates its AttributionControl without `compact`,
-       so the attribution renders as a full-width bar (responsive: expanded
-       >640px) that collides with our bottom-right HUD FAB. Force `compact: true`
-       on every instance so it always collapses to the fixed-size "ⓘ"
-       (expandable on click) — the FAB then needs only a fixed lift to clear it.
-       Patch the prototype's onAdd (the namespace export may be read-only, so we
-       can't swap the constructor) and flip the flag before maplibre lays it out.
-       Must run after maplibre-gl.js, before flutter_bootstrap.js builds the map. -->
-  <script>
-    (function () {
-      var ctrl = window.maplibregl && window.maplibregl.AttributionControl;
-      if (!ctrl || !ctrl.prototype) return;
-      var origOnAdd = ctrl.prototype.onAdd;
-      ctrl.prototype.onAdd = function (map) {
-        this.options = this.options || {};
-        this.options.compact = true;
-        var el = origOnAdd.call(this, map); // the attribution container <div>
-        // maplibre force-expands (open + compact-show) the first time it turns
-        // compact on — which happens when the attributions finish loading, after
-        // onAdd returns. Collapse once on the map's first idle; later user clicks
-        // still expand normally (compact class is then set, so it isn't redone).
-        var collapse = function () {
-          if (!el || !el.classList) return;
-          el.removeAttribute('open');
-          el.classList.remove('maplibregl-compact-show');
-        };
-        collapse();
-        if (map && map.once) map.once('idle', collapse);
-        return el;
-      };
-    })();
-  </script>
-
   <style>
+    /* The maplibre_gl plugin's web attribution is uncontrollable (no compact,
+       no-op margins, re-created on every map-options update). We hide it and
+       render our own compliant attribution as a Flutter HUD widget
+       (MapAttribution) instead — see lib/features/map/map_attribution.dart. */
+    .maplibregl-ctrl-attrib { display: none !important; }
+
     /* Orion drives location from its own Flutter HUD FAB; hide MapLibre's
        built-in geolocate control so web doesn't show two overlapping location
        icons. The control still exists (our FAB triggers it programmatically),
-       so the dot + accuracy circle remain. */
+       so the dot + accuracy circle remain. Hide the whole ctrl-GROUP wrapper,
+       not just the button, so its empty box reserves no space. */
+    .maplibregl-ctrl-group:has(> .maplibregl-ctrl-geolocate),
     .maplibregl-ctrl-geolocate { display: none !important; }
   </style>
 

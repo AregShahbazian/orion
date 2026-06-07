@@ -10,12 +10,4 @@ void main() {
     expect(kMapStyleUrl, contains('openfreemap.org'));
     expect(kMapStyleUrl, contains('liberty'));
   });
-
-  test('Philippines bounds frame the country', () {
-    expect(kPhBounds.southwest.latitude, lessThan(kPhBounds.northeast.latitude));
-    expect(kPhBounds.southwest.longitude, lessThan(kPhBounds.northeast.longitude));
-    // initial center sits inside the bounds
-    expect(kPhCenter.latitude, greaterThan(kPhBounds.southwest.latitude));
-    expect(kPhCenter.latitude, lessThan(kPhBounds.northeast.latitude));
-  });
 }

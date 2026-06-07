@@ -12,6 +12,7 @@ import '../../core/interaction/interaction_ids.dart';
 import 'compass_button.dart';
 import 'location_controller.dart';
 import 'location_fab.dart';
+import 'map_attribution.dart';
 import 'map_constants.dart';
 import 'offline_indicator.dart';
 
@@ -49,8 +50,8 @@ class _MapScreenState extends State<MapScreen> {
 
   // Gesture capture: the camera at the last settle, diffed against the next one
   // to classify what the user changed. _programmaticCamera suppresses the capture
-  // for camera moves we initiate ourselves (console dispatch, fit-to-bounds), so
-  // they aren't misrecorded as user gestures.
+  // for camera moves we initiate ourselves (e.g. console dispatch), so they
+  // aren't misrecorded as user gestures.
   CameraPosition? _lastIdleCamera;
   bool _programmaticCamera = false;
 
@@ -193,51 +194,33 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  /// Frame the whole Philippines once the style is ready. Fitting to bounds
-  /// (rather than a fixed zoom) keeps the framing correct across screen sizes
-  /// and after rotation.
-  Future<void> _fitPhilippines() async {
-    await _controller?.moveCamera(
-      CameraUpdate.newLatLngBounds(
-        kPhBounds,
-        left: 24,
-        top: 24,
-        right: 24,
-        bottom: 24,
-      ),
-    );
-  }
-
-  /// Style is loaded and the camera is usable: frame the country, then let dev
-  /// console automation know via `orion.ready` (no-op off web/debug).
+  /// Style is loaded and the camera is usable: let dev console automation know
+  /// via `orion.ready` (no-op off web/debug).
   Future<void> _onStyleLoaded() async {
-    await _fitPhilippines();
     signalMapReady();
   }
 
   @override
   Widget build(BuildContext context) {
-    // The native attribution "i" lives in the platform view, outside Flutter's
+    // Native: the attribution "i" lives in the platform view, outside Flutter's
     // tree, so SafeArea can't reach it — the plugin's margin param is the only
-    // lever. Inset it by the device safe-area padding so it clears the nav bar,
+    // lever. Pin it bottom-LEFT (so the bottom-right corner is free for the FAB)
+    // and inset it by the device safe-area padding so it clears the nav bar,
     // camera cutout and rounded corners. The plugin multiplies these margins by
-    // display density itself (Convert.toPoint), so pass logical dp here — NOT
-    // physical pixels. (The native compass is disabled; our Flutter
-    // CompassButton in the HUD layer replaces it.)
-    // Pinned bottom-LEFT so the bottom-right corner is free for the location FAB.
-    // EXCEPT on web: maplibre_gl_web resets the attribution to bottom-right on
-    // every partial option update (e.g. when location turns on) — its
-    // interpretMapLibreMapOptions forces bottomRight whenever the position key
-    // is absent from the diff. Fighting it makes the label visibly jump, so on
-    // web we let it live bottom-right and lift the FAB above it instead.
+    // display density itself (Convert.toPoint), so pass logical dp — NOT pixels.
+    // (The native compass is disabled; our Flutter CompassButton replaces it.)
+    //
+    // Web: the plugin's attribution is uncontrollable (no compact, no-op margins,
+    // re-created on every options update), so it's hidden in `web/index.html` and
+    // we render our own [MapAttribution] bottom-right with the FAB lifted above.
     final pad = MediaQuery.paddingOf(context);
-    final attributionMargins =
-        Point(pad.left + kHudEdgeInset, pad.bottom + kHudEdgeInset);
-    final attributionPosition = kIsWeb
-        ? AttributionButtonPosition.bottomRight
-        : AttributionButtonPosition.bottomLeft;
-    // FAB is always bottom-right. On web it sits above the bottom-right
-    // attribution label; on native (label is bottom-left) it's the lowest control.
+    final attributionMargins = kIsWeb
+        ? null
+        : Point(pad.left + kHudEdgeInset, pad.bottom + kHudEdgeInset);
+    final attributionPosition =
+        kIsWeb ? null : AttributionButtonPosition.bottomLeft;
+    // FAB is always bottom-right. On web it sits above our bottom-right
+    // attribution; on native (attribution is bottom-left) it's the lowest control.
     const fabAlignment = Alignment.bottomRight;
     final fabBottomInset = kIsWeb ? kHudAttributionClearance : 0.0;
 
@@ -246,9 +229,10 @@ class _MapScreenState extends State<MapScreen> {
         children: [
           MapLibreMap(
             styleString: kMapStyleUrl,
+            // No default region — open on the whole world; the map then follows
+            // the user's location once it's available.
             initialCameraPosition: const CameraPosition(
-              target: kPhCenter,
-              zoom: kPhInitialZoom,
+              target: LatLng(0, 0),
             ),
             onMapCreated: _onMapCreated,
             onStyleLoadedCallback: _onStyleLoaded,
@@ -266,8 +250,8 @@ class _MapScreenState extends State<MapScreen> {
             // camera so we can mirror bearing/tilt into the button.
             compassEnabled: false,
             trackCameraPosition: true,
-            // Keep the native attribution inside the safe area (bottom-left on
-            // native, bottom-right on web — see attributionPosition above).
+            // Native only: keep the attribution inside the safe area, bottom-left
+            // (null on web — hidden there, replaced by [MapAttribution]).
             attributionButtonPosition: attributionPosition,
             attributionButtonMargins: attributionMargins,
             // All gestures enabled (PRD req. 5).
@@ -323,6 +307,12 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                     ),
                   ),
+                  // Web only: our own attribution (the plugin's is hidden on web).
+                  if (kIsWeb)
+                    const Align(
+                      alignment: Alignment.bottomRight,
+                      child: MapAttribution(),
+                    ),
                 ],
               ),
             ),
