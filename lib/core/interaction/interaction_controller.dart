@@ -49,30 +49,47 @@ class InteractionController {
   final Map<String, InteractionHandler> _handlers = {};
   final Queue<InteractionRecord> _log = Queue<InteractionRecord>();
 
+  /// Ids whose log entry is produced *elsewhere* (e.g. navigation, recorded by a
+  /// `NavigatorObserver` on the resulting push/pop). Dispatching one of these
+  /// executes its handler but does NOT record here — the observer is the single
+  /// source of truth, so there's no double entry and no timing-dependent guard.
+  final Set<String> _externallyRecorded = {};
+
   /// Bind [handler] to a taxonomy [id]. Called by the feature that owns the
-  /// interaction, typically in `initState`.
-  void register(String id, InteractionHandler handler) {
+  /// interaction, typically in `initState`. Set [record] to false when this id's
+  /// log entry is produced by an observer (see [_externallyRecorded]).
+  void register(String id, InteractionHandler handler, {bool record = true}) {
     assert(InteractionIds.all.contains(id), 'Unknown interaction id: $id');
     _handlers[id] = handler;
+    if (record) {
+      _externallyRecorded.remove(id);
+    } else {
+      _externallyRecorded.add(id);
+    }
   }
 
-  void unregister(String id) => _handlers.remove(id);
+  void unregister(String id) {
+    _handlers.remove(id);
+    _externallyRecorded.remove(id);
+  }
 
-  /// Perform [id] as if the user did it. Records + logs first, then runs the
-  /// registered handler and returns whatever it returns. Throws if [id] has no
-  /// handler registered.
+  /// Perform [id] as if the user did it. Records + logs first (unless [id] is
+  /// externally recorded), then runs the registered handler and returns whatever
+  /// it returns. Throws if [id] has no handler registered.
   Future<Object?> dispatch(
     String id, {
     Map<String, Object?>? payload,
     InteractionOrigin origin = InteractionOrigin.user,
   }) async {
     assert(InteractionIds.all.contains(id), 'Unknown interaction id: $id');
-    _record(InteractionRecord(
-      id: id,
-      origin: origin,
-      at: DateTime.now(),
-      payload: payload,
-    ));
+    if (!_externallyRecorded.contains(id)) {
+      _record(InteractionRecord(
+        id: id,
+        origin: origin,
+        at: DateTime.now(),
+        payload: payload,
+      ));
+    }
     final handler = _handlers[id];
     if (handler == null) {
       throw StateError('No handler registered for interaction "$id"');

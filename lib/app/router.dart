@@ -14,9 +14,10 @@ const Map<String, String> _screenPaths = {
   'settings': '/settings',
 };
 
-/// Records system-initiated navigation (Android hardware/edge-swipe back) that
-/// go_router pops without going through the bus. Dispatched navigation marks
-/// itself (below) so it isn't double-recorded.
+/// The single recorder of screen navigation: logs every push/pop (cog, in-app
+/// back, Android system back, or programmatic) as `nav.screen.open/close`. The
+/// open/close commands are registered `record: false` (below) so dispatch doesn't
+/// double-log — no flag, no race.
 final NavInteractionObserver _navObserver = NavInteractionObserver();
 
 /// The app router. The map ([MapScreen]) is the home route; screens are
@@ -47,14 +48,16 @@ final GoRouter appRouter = GoRouter(
 /// programmatically (web `window.orion` / native `ext.orion.*`). App-lifetime;
 /// never unregistered. Call once at startup.
 void registerNavInteractions(GoRouter router, [InteractionController? ic]) {
-  // `push` returns a Future that completes only when the pushed screen is
-  // *popped* — so handlers must NOT return/await it, or the dispatch (and any
-  // remote RPC waiting on it) would hang until the user goes back. Fire it and
-  // return immediately; the screen is shown synchronously.
+  // Navigation is logged by [NavInteractionObserver] on the resulting push/pop,
+  // so the open/close commands are registered `record: false` — dispatching them
+  // executes the navigation without a second log entry (the cog still records its
+  // own `hud.settings.tap`). `push` returns a Future that completes only when the
+  // pushed screen is *popped*, so handlers must NOT return/await it, or the
+  // dispatch (and any remote RPC waiting on it) would hang until the user goes
+  // back. Fire it and return immediately; the screen is shown synchronously.
   final interactions = ic ?? InteractionController.instance;
   interactions
     ..register(InteractionIds.settingsTap, (_) {
-      _navObserver.markDispatched();
       unawaited(router.push('/settings'));
       return null;
     })
@@ -64,17 +67,11 @@ void registerNavInteractions(GoRouter router, [InteractionController? ic]) {
       if (path == null) {
         throw ArgumentError('Unknown screen: $screen');
       }
-      _navObserver.markDispatched();
       unawaited(router.push(path));
       return null;
-    })
+    }, record: false)
     ..register(InteractionIds.navScreenClose, (_) {
-      // Only mark when we'll actually pop, else the flag would wrongly swallow
-      // the next system-initiated pop.
-      if (router.canPop()) {
-        _navObserver.markDispatched();
-        router.pop();
-      }
+      if (router.canPop()) router.pop();
       return null;
-    });
+    }, record: false);
 }

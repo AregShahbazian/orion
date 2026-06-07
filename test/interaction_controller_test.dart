@@ -61,4 +61,21 @@ void main() {
     expect(log.single.origin, InteractionOrigin.user);
     expect(log.single.payload, {'zoom': 12.0});
   });
+
+  test('record:false runs the handler but does not log (observer is the '
+      'single recorder)', () async {
+    var ran = false;
+    bus.register(InteractionIds.navScreenOpen, (_) {
+      ran = true;
+      return null;
+    }, record: false);
+    await bus.dispatch(InteractionIds.navScreenOpen, payload: {'screen': 'x'});
+    expect(ran, isTrue); // handler executed
+    expect(bus.recent(), isEmpty); // but nothing logged by dispatch
+
+    // Re-registering with record:true restores logging.
+    bus.register(InteractionIds.navScreenOpen, (_) => null);
+    await bus.dispatch(InteractionIds.navScreenOpen);
+    expect(bus.recent().single.id, InteractionIds.navScreenOpen);
+  });
 }
