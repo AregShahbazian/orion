@@ -5,6 +5,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../core/interaction/console_bridge.dart';
 import '../../core/interaction/interaction_controller.dart';
@@ -287,31 +288,40 @@ class _MapScreenState extends State<MapScreen> {
               child: Stack(
                 children: [
                   if (!_isOnline) const OfflineBanner(),
+                  // PointerInterceptor stops taps on HUD controls from leaking
+                  // through to the MapLibre platform view underneath (a Flutter-
+                  // web quirk): the leaked touch makes maplibre `map.stop()` on
+                  // touchstart, which cancelled the compass reset animation.
+                  // No-op off web.
                   Align(
                     alignment: Alignment.topRight,
-                    child: CompassButton(
-                      bearing: _bearing,
-                      visible: _oriented,
-                      onReset: () =>
-                          _interactions.dispatch(InteractionIds.resetOrientationTap),
+                    child: PointerInterceptor(
+                      child: CompassButton(
+                        bearing: _bearing,
+                        visible: _oriented,
+                        onReset: () => _interactions
+                            .dispatch(InteractionIds.resetOrientationTap),
+                      ),
                     ),
                   ),
                   Align(
                     alignment: fabAlignment,
                     child: Padding(
                       padding: EdgeInsets.only(bottom: fabBottomInset),
-                      child: LocationFab(
-                        enabled: _location.enabled,
-                        trackingMode: _location.trackingMode,
-                        onPressed: _onLocationTap,
+                      child: PointerInterceptor(
+                        child: LocationFab(
+                          enabled: _location.enabled,
+                          trackingMode: _location.trackingMode,
+                          onPressed: _onLocationTap,
+                        ),
                       ),
                     ),
                   ),
                   // Web only: our own attribution (the plugin's is hidden on web).
                   if (kIsWeb)
-                    const Align(
+                    Align(
                       alignment: Alignment.bottomRight,
-                      child: MapAttribution(),
+                      child: PointerInterceptor(child: const MapAttribution()),
                     ),
                 ],
               ),

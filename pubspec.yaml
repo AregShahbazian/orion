@@ -45,6 +45,7 @@ dependencies:
   # Browser console interop for structured dev logging (web only; native uses
   # dart:developer). See lib/core/log/dev_log.dart.
   web: ^1.1.1
+  pointer_interceptor: ^0.10.1+2
 
 dev_dependencies:
   flutter_test:
