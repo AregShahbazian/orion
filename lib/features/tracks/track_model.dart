@@ -1,7 +1,5 @@
 import 'dart:math' as math;
 
-import '../../core/db/app_database.dart';
-
 /// A single GPX track point as parsed from a file — before persistence. The
 /// canonical shape both Gaia and MyTracks parse into.
 class ParsedPoint {
@@ -118,34 +116,4 @@ double _haversine(double lat1, double lon1, double lat2, double lon2) {
           sinLon *
           sinLon;
   return 2 * r * math.asin(math.sqrt(h));
-}
-
-/// Display helpers for a persisted [Track] row (the stats are already stored, so
-/// these only format).
-extension TrackFormatting on Track {
-  Duration get duration => endedAt.difference(startedAt);
-
-  /// Average speed in m/s over the whole track.
-  double get averageSpeedMs {
-    final secs = duration.inSeconds;
-    return secs == 0 ? 0 : distanceMeters / secs;
-  }
-
-  String get distanceFormatted => distanceMeters < 1000
-      ? '${distanceMeters.round()} m'
-      : '${(distanceMeters / 1000).toStringAsFixed(2)} km';
-
-  String get durationFormatted {
-    final d = duration;
-    final h = d.inHours;
-    final m = d.inMinutes % 60;
-    final s = d.inSeconds % 60;
-    final mm = m.toString().padLeft(2, '0');
-    final ss = s.toString().padLeft(2, '0');
-    return h > 0 ? '$h:$mm:$ss' : '$m:$ss';
-  }
-
-  String get avgSpeedFormatted => '${(averageSpeedMs * 3.6).toStringAsFixed(1)} km/h';
-
-  String get maxSpeedFormatted => '${(maxSpeedMs * 3.6).toStringAsFixed(1)} km/h';
 }

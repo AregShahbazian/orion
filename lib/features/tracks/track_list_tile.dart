@@ -4,7 +4,6 @@ import '../../core/db/app_database.dart';
 import '../../core/interaction/interaction_controller.dart';
 import '../../core/interaction/interaction_ids.dart';
 import 'track_format.dart';
-import 'track_model.dart';
 
 /// One summary row: color swatch + name, with start date / distance / duration
 /// beneath. Tapping the body opens detail; the ⋮ menu exports (the only action

@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:xml/xml.dart';
 
 import 'track_model.dart';
@@ -51,22 +54,11 @@ List<ParsedTrack> parseGpx(String xmlString) {
   return tracks;
 }
 
-/// Web has no isolates (so `compute` runs inline and would freeze the UI). Parse
-/// one `<trk>` block at a time, reusing [parseGpx] per block and yielding to the
-/// event loop between them, so the page stays responsive. Each block is wrapped
-/// back in the file's original `<gpx …>` open tag to keep its namespace
-/// declarations (e.g. MyTracks' `topografix:` prefix). Correctness is identical
-/// to [parseGpx] — it's the same parser, just fed per track.
-Future<List<ParsedTrack>> parseGpxYielding(String xmlString) async {
-  final rootOpen =
-      RegExp(r'<gpx\b[^>]*>').firstMatch(xmlString)?.group(0) ?? '<gpx>';
-  final out = <ParsedTrack>[];
-  for (final m in RegExp(r'<trk\b[^>]*>[\s\S]*?</trk>').allMatches(xmlString)) {
-    out.addAll(parseGpx('$rootOpen${m.group(0)}</gpx>'));
-    await Future<void>.delayed(Duration.zero);
-  }
-  return out;
-}
+/// Decode UTF-8 [bytes] then [parseGpx]. Entry point for off-thread parsing
+/// (`compute` on native, the web worker on web) — pure, no Flutter imports, so it
+/// compiles into a web worker.
+List<ParsedTrack> parseGpxBytes(Uint8List bytes) =>
+    parseGpx(utf8.decode(bytes, allowMalformed: true));
 
 /// A trkpt before time-fill — `<time>` may be missing.
 class _RawPoint {

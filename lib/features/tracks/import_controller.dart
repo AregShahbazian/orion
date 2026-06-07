@@ -1,19 +1,11 @@
-import 'dart:convert';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../core/log/dev_log.dart';
 import 'file_read.dart';
-import 'gpx_parser.dart';
+import 'gpx_offthread.dart';
 import 'track_model.dart';
 import 'tracks_repository.dart';
-
-/// [compute] entrypoint: decode + parse a GPX file off the UI isolate. Top-level
-/// so it can run in a background isolate (mobile); on web `compute` runs it
-/// inline (no isolates there).
-List<ParsedTrack> _parseGpxBytes(Uint8List bytes) =>
-    parseGpx(utf8.decode(bytes, allowMalformed: true));
 
 /// Runs GPX imports off the UI thread of control: picks file(s), parses each into
 /// its tracks, and stores them one by one. [pending] is the number of tracks
@@ -106,11 +98,8 @@ class ImportController extends ChangeNotifier {
       _fail('Could not read ${file.name}');
       return const [];
     }
-    // Off-UI parse: a background isolate via compute() on mobile; on web (no
-    // isolates) a per-track yielding parse that keeps the page responsive.
-    final tracks = kIsWeb
-        ? await parseGpxYielding(utf8.decode(bytes, allowMalformed: true))
-        : await compute(_parseGpxBytes, bytes);
+    // Off-UI parse: a background isolate on mobile, a real Web Worker on web.
+    final tracks = await parseGpxOffThread(bytes);
     if (tracks.isEmpty) _fail('No tracks found in ${file.name}');
     return tracks;
   }
