@@ -46,3 +46,7 @@ app.*.map.json
 
 # Playwright debug screenshots (see docs/playwright-testing.md)
 .playwright-screenshots/
+
+# Compiled web worker artifacts (keep the .js; it is committed)
+web/gpx_worker.dart.js.deps
+web/gpx_worker.dart.js.map

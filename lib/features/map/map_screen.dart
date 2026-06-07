@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
+import '../../core/ui/app_messenger.dart';
 import '../../core/interaction/console_bridge.dart';
 import '../../core/interaction/interaction_controller.dart';
 import '../../core/interaction/interaction_ids.dart';
@@ -220,17 +221,15 @@ class _MapScreenState extends State<MapScreen> {
     _handleLocationResult(result);
   }
 
-  /// Show the Settings recovery SnackBar if the user has permanently denied
+  /// Show the Settings recovery message if the user has permanently denied
   /// permission (they asked for it by tapping / long-pressing the FAB).
   void _handleLocationResult(Object? result) {
-    if (!mounted || result != LocationTapResult.permanentlyDenied) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text(_kLocationDeniedMessage),
-        action: SnackBarAction(
-          label: 'Settings',
-          onPressed: _location.openAppSettings,
-        ),
+    if (result != LocationTapResult.permanentlyDenied) return;
+    showAppMessage(
+      _kLocationDeniedMessage,
+      action: SnackBarAction(
+        label: 'Settings',
+        onPressed: _location.openAppSettings,
       ),
     );
   }
@@ -368,6 +367,13 @@ class _MapScreenState extends State<MapScreen> {
                                   (kIsWeb || !_settings.longPressZoomEnabled)
                                       ? null
                                       : _onLocationLongPress,
+                            ),
+                            const SizedBox(height: kHudControlGap),
+                            HudButton(
+                              semanticLabel: 'Tracks',
+                              onPressed: () => _interactions
+                                  .dispatch(InteractionIds.hudTracksTap),
+                              child: const Icon(Icons.route),
                             ),
                             const SizedBox(height: kHudControlGap),
                             HudButton(

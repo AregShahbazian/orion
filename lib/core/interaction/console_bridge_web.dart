@@ -245,5 +245,16 @@ void installInteractionConsoleBridge(
 
   api.setProperty('webnav'.toJS, webnav);
 
+  // --- orion.data: destructive data ops.
+
+  final data = JSObject();
+
+  // `orion.data.clearTracks()` — delete ALL stored tracks (imported or not).
+  // Destructive; returns a Promise that resolves once the DB is cleared.
+  data.setProperty('clearTracks'.toJS,
+      (() => dispatchProgrammatic(InteractionIds.dataTracksClear)).toJS);
+
+  api.setProperty('data'.toJS, data);
+
   web.window.setProperty('orion'.toJS, api);
 }

@@ -6,6 +6,7 @@ import 'core/interaction/console_bridge.dart';
 import 'core/interaction/interaction_controller.dart';
 import 'features/map/map_navigation_controller.dart';
 import 'features/settings/settings_controller.dart';
+import 'features/tracks/tracks_interactions.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,5 +27,7 @@ Future<void> main() async {
   // Wire screen-navigation ids (settings cog, open/close) to the router so they
   // dispatch both ways — captured in the log and drivable from the bridges.
   registerNavInteractions(appRouter);
+  // Wire the Phase 6 track ids (HUD button, import, open, export).
+  registerTracksInteractions(appRouter);
   runApp(const OrionApp());
 }
