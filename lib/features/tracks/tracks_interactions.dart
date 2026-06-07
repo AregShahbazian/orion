@@ -53,7 +53,6 @@ void registerTracksInteractions(
     })
     ..register(InteractionIds.dataTracksClear, (_) async {
       await repo.deleteAll();
-      devLog('tracks', 'cleared all tracks');
       return null;
     });
 }

@@ -1,8 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
-import '../log/dev_log.dart';
-
 part 'app_database.g.dart';
 
 /// One row per imported track. Stats are computed once at import and stored here
@@ -56,12 +54,9 @@ class AppDatabase extends _$AppDatabase {
         web: DriftWebOptions(
           sqlite3Wasm: Uri.parse('sqlite3.wasm'),
           driftWorker: Uri.parse('drift_worker.js'),
-          onResult: (r) {
-            if (r.missingFeatures.isNotEmpty) {
-              devLog('db',
-                  'web storage ${r.chosenImplementation}; missing ${r.missingFeatures}');
-            }
-          },
+          // No-op handler to suppress drift's default `print` about missing
+          // browser features (fires on normal web loads without COOP/COEP).
+          onResult: (_) {},
         ),
       );
 }
