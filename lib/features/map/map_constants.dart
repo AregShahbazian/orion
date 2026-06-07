@@ -12,8 +12,13 @@ const String kMapAttribution =
 /// margins so both sit at the same inset.
 const double kHudEdgeInset = 8.0;
 
-/// Extra bottom inset (logical dp) to lift the bottom-right location FAB clear
-/// of our [MapAttribution] "ⓘ" widget below it. Web only — on native the
-/// attribution sits bottom-left. The collapsed "ⓘ" is a fixed-size circle, so
-/// this lift is constant.
+/// Vertical gap (logical dp) between stacked HUD controls in a column (e.g. the
+/// bottom-right location FAB and the settings cog beneath it).
+const double kHudControlGap = 8.0;
+
+/// Extra bottom inset (logical dp) to lift the bottom-right HUD column clear of
+/// our [MapAttribution] "ⓘ" widget below it, so the lowest control (the settings
+/// cog) doesn't collide with it. Web only — on native the attribution sits
+/// bottom-left. The collapsed "ⓘ" is a fixed-size circle, so this lift is
+/// constant.
 const double kHudAttributionClearance = 30.0;

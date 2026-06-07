@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app.dart';
+import 'app/router.dart';
 import 'core/interaction/console_bridge.dart';
 import 'core/interaction/interaction_controller.dart';
 import 'features/map/map_navigation_controller.dart';
@@ -16,5 +17,8 @@ void main() {
   // native until the service-extension path lands.
   installInteractionConsoleBridge(
       InteractionController.instance, MapNavigationController.instance);
+  // Wire screen-navigation ids (settings cog, open/close) to the router so they
+  // dispatch both ways — captured in the log and drivable from the bridges.
+  registerNavInteractions(appRouter);
   runApp(const OrionApp());
 }

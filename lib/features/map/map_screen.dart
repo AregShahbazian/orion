@@ -11,6 +11,7 @@ import '../../core/interaction/console_bridge.dart';
 import '../../core/interaction/interaction_controller.dart';
 import '../../core/interaction/interaction_ids.dart';
 import 'compass_button.dart';
+import 'hud_button.dart';
 import 'location_controller.dart';
 import 'location_fab.dart';
 import 'map_attribution.dart';
@@ -225,10 +226,11 @@ class _MapScreenState extends State<MapScreen> {
         : Point(pad.left + kHudEdgeInset, pad.bottom + kHudEdgeInset);
     final attributionPosition =
         kIsWeb ? null : AttributionButtonPosition.bottomLeft;
-    // FAB is always bottom-right. On web it sits above our bottom-right
-    // attribution; on native (attribution is bottom-left) it's the lowest control.
-    const fabAlignment = Alignment.bottomRight;
-    final fabBottomInset = kIsWeb ? kHudAttributionClearance : 0.0;
+    // Bottom-right HUD column (FAB on top, settings cog beneath). On web the
+    // whole column is lifted above our bottom-right attribution so the lowest
+    // control (the cog) clears it; on native (attribution is bottom-left) it's
+    // already the lowest, no lift needed.
+    final hudColumnBottomInset = kIsWeb ? kHudAttributionClearance : 0.0;
 
     return Scaffold(
       body: Stack(
@@ -312,15 +314,29 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                   ),
                   Align(
-                    alignment: fabAlignment,
+                    alignment: Alignment.bottomRight,
                     child: Padding(
-                      padding: EdgeInsets.only(bottom: fabBottomInset),
-                      child: PointerInterceptor(
-                        child: LocationFab(
-                          enabled: _location.enabled,
-                          trackingMode: _location.trackingMode,
-                          onPressed: _onLocationTap,
-                        ),
+                      padding: EdgeInsets.only(bottom: hudColumnBottomInset),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          PointerInterceptor(
+                            child: LocationFab(
+                              enabled: _location.enabled,
+                              trackingMode: _location.trackingMode,
+                              onPressed: _onLocationTap,
+                            ),
+                          ),
+                          const SizedBox(height: kHudControlGap),
+                          PointerInterceptor(
+                            child: HudButton(
+                              semanticLabel: 'Settings',
+                              onPressed: () => _interactions
+                                  .dispatch(InteractionIds.settingsTap),
+                              child: const Icon(Icons.settings),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

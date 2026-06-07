@@ -13,6 +13,19 @@ class InteractionIds {
   /// HUD compass / reset button tapped — restore north-up, flat.
   static const String resetOrientationTap = 'hud.resetOrientation.tap';
 
+  /// HUD settings cog tapped — open the settings screen.
+  static const String settingsTap = 'hud.settings.tap';
+
+  // App-screen navigation. The map stays alive beneath every screen
+  // (`ShellRoute`); these only push/pop screens over it. See
+  // `ai/phase-5/navigation/design.md`.
+
+  /// Open a named app screen. Payload `{screen: String}` (e.g. `'settings'`).
+  static const String navScreenOpen = 'nav.screen.open';
+
+  /// Close the current screen — pop back to whatever's beneath (the live map).
+  static const String navScreenClose = 'nav.screen.close';
+
   /// Camera follow dropped because the user panned/zoomed by hand.
   static const String mapTrackingDismissed = 'map.follow.dismissed';
 
@@ -36,6 +49,9 @@ class InteractionIds {
   static const Set<String> all = {
     followMeTap,
     resetOrientationTap,
+    settingsTap,
+    navScreenOpen,
+    navScreenClose,
     mapTrackingDismissed,
     mapZoom,
     mapScroll,

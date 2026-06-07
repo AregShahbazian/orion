@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'features/map/map_screen.dart';
+import 'app/router.dart';
 
 /// Draw under the status/navigation bars and make them transparent, so the map
 /// fills the screen and HUD insets come from SafeArea. Re-applied on resume:
@@ -42,10 +42,10 @@ class _OrionAppState extends State<OrionApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp.router(
       title: 'Orion',
       debugShowCheckedModeBanner: false,
-      home: MapScreen(),
+      routerConfig: appRouter,
     );
   }
 }
