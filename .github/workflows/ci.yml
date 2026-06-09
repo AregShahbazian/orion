@@ -27,9 +27,13 @@ jobs:
         with:
           channel: stable
       # Chrome + a version-matched chromedriver on PATH, which scripts/web/e2e.sh
-      # needs. browser-actions installs both and aligns their versions.
+      # needs. Pin a concrete version so Chrome and chromedriver come from the
+      # same Chrome-for-Testing build — leaving it unpinned skews them (the
+      # action installed Chrome 148 but chromedriver 151, breaking the session).
+      # Bump this together when it ages.
       - uses: browser-actions/setup-chrome@v1
         with:
+          chrome-version: '148'
           install-chromedriver: true
       - run: flutter pub get
       # The script defaults to --no-headless; --headless forwards last and wins.
