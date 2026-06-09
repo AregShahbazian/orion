@@ -340,6 +340,10 @@ class _MapScreenState extends State<MapScreen> {
                     alignment: Alignment.topRight,
                     child: PointerInterceptor(
                       child: CompassButton(
+                        // Key == the interaction id it dispatches, so tests can
+                        // `find.byKey(ValueKey(InteractionIds.resetOrientationTap))`
+                        // using the same vocabulary the bus/console bridge use.
+                        key: const ValueKey(InteractionIds.resetOrientationTap),
                         bearing: _bearing,
                         visible: _oriented,
                         onReset: () => _interactions
