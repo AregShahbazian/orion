@@ -4,6 +4,9 @@ Dev helper scripts, grouped by target. Run from the repo root.
 
 ## `web/` — browser dev loop
 - **`run.sh`** — `flutter run -d chrome` (the primary dev loop). Forwards extra args.
+- **`e2e.sh`** — run the `integration_test` E2E suite in Chrome via `flutter drive`.
+  Auto-starts a chromedriver on `:4444` if one isn't running. Defaults to the
+  `moveKm` POC; override with `TARGET=…`. Requires chromedriver on PATH.
 
 Driving interactions on web needs no script: the console bridge exposes
 `window.orion` in the browser DevTools console, namespaced to mirror the
@@ -37,6 +40,9 @@ controllers (`bus.*`, `map.*`, `settings.*`, `tracks.*`, `webnav.*`) —
     ./scripts/mobile/orion.sh logs                # all orion.* records
     ./scripts/mobile/orion.sh logs scope=location # only orion.location
     ```
+- **`e2e.sh`** — run the `integration_test` E2E suite on a connected device/
+  emulator via `flutter drive` (no chromedriver). Same suite as `web/e2e.sh`;
+  pick a device with `-d <id>`, override the target with `TARGET=…`.
 - **`uninstall-from-zenfone.sh`** — adb uninstall from the test Zenfone.
 
 Screenshots (`*.png`) dropped here are gitignored.
