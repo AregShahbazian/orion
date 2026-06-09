@@ -54,7 +54,7 @@ Every user action routes through this bus, **both ways**:
 Features register handlers at startup (`registerNavInteractions`,
 `registerSettingsInteractions`, `registerTracksInteractions`, and map/location
 handlers in `MapScreen.initState`). The same handler runs whether a tap or a
-`window.orion.dispatch(...)` console call triggers it — so the app is fully
+`window.orion.bus.dispatch(...)` console call triggers it — so the app is fully
 drivable from a console and every flow is auditable via the ring buffer
 (`dump()` for bug reports).
 

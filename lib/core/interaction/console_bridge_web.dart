@@ -22,181 +22,207 @@ void signalMapReady() {
   if (!_mapReady.isCompleted) _mapReady.complete();
 }
 
-/// Web: expose `window.orion` so interactions can be fired from the browser
-/// console as programmatic dispatches:
+/// Web: expose `window.orion` — a stable, namespaced bridge for driving and
+/// inspecting the app from the browser console or a script. The namespaces mirror
+/// the Dart controllers/areas behind each call; the same vocabulary is exposed on
+/// native as `ext.orion.<namespace>.<call>`.
+///
+/// **Commands** route through the interaction bus (`bus.dispatch`, origin =
+/// programmatic), so every state change is recorded in the ring buffer and
+/// replayable. **Reads** call the controller/getter directly and are not recorded.
 ///
 /// ```js
-/// await orion.ready                 // resolves when the map is usable
-/// await orion.followMe()            // tap the location FAB (cycle follow mode)
-/// await orion.resetOrientation()    // tap the compass (north-up, flat)
-/// await orion.dispatch('hud.followMe.tap')                 // same, by raw id
-/// await orion.dispatch('map.zoom.changed', { zoom: 12 })   // resolves when the move settles
-/// orion.ids                         // → the valid interaction ids
-/// orion.logEvents(true)             // start echoing each interaction to the log
-/// orion.dump()                      // print the captured buffer; returns the records
+/// await orion.ready                         // resolves when the map is usable
+///
+/// // bus → InteractionController
+/// orion.bus.ids                             // valid interaction ids (read)
+/// await orion.bus.dispatch('map.zoom.changed', { zoom: 12 })
+/// orion.bus.dump()                          // ring buffer records (read)
+/// await orion.bus.hud.followMe()            // tap the location FAB (cycle follow)
+/// await orion.bus.hud.resetOrientation()    // tap the compass (north-up, flat)
+///
+/// // map → MapNavigationController (live-camera reads + relative moves)
+/// orion.map.camera()                        // {lat,lng,zoom,bearing,tilt} | null (read)
+/// await orion.map.move(90, 5000)            // move(heading°, metres): 5 km east
+/// await orion.map.moveKm(90, 5)             // moveKm(heading°, km): same
+/// await orion.map.zoomBy(1)                 // +in / -out one level
+/// await orion.map.rotateBy(45)              // clockwise degrees
+/// await orion.map.tiltBy(30)                // pitch degrees
+/// await orion.map.panTo(13.75, 100.5)       // absolute center
+///
+/// // settings → SettingsController
+/// await orion.settings.logEvents(true)      // dispatch settings.logEvents.set
+/// orion.settings.logEvents()                // current value (read)
+///
+/// // tracks → tracks data layer
+/// await orion.tracks.clearTracks()          // delete ALL stored tracks (destructive)
+///
+/// // webnav → go_router
+/// orion.webnav.dump()                       // {route,name,…,browserUrl} (read)
+/// orion.webnav.location()                   // active route, e.g. "/settings" (read)
+/// await orion.webnav.to('settings')         // open a screen
+/// await orion.webnav.back()                 // close the current screen
 /// ```
 ///
-/// Map navigation lives under `orion.mapnav` (a [MapNavigationController]) — read
-/// the live camera and make relative moves the raw ids can't express. Each move
-/// reads the current center, converts heading + distance to a target, and applies
-/// it:
-///
-/// ```js
-/// orion.mapnav.camera()             // → {lat, lng, zoom, bearing, tilt} | null
-/// await orion.mapnav.move(90, 5000) // move(heading°, metres): 5 km east
-/// await orion.mapnav.moveKm(90, 5)  // moveKm(heading°, km): same, in km
-/// await orion.mapnav.zoomBy(1)      // zoom in one level (negative = out)
-/// await orion.mapnav.rotateBy(45)   // rotate 45° clockwise
-/// await orion.mapnav.tiltBy(30)     // pitch 30°
-/// await orion.mapnav.panTo(13.75, 100.5)   // absolute center
-/// ```
-///
-/// Heading is compass degrees: 0 = N, 90 = E, 180 = S, 270 = W (east ≈ screen
-/// "right" when north-up). [dispatch] (and the move helpers) return a Promise so
-/// scripts can `await` and sequence steps; re-read `mapnav.camera()` once the map
-/// settles to see the result.
-///
-/// Screen navigation state lives under `orion.webnav` — the router's location vs.
-/// the browser URL (which `push` doesn't always rewrite):
-///
-/// ```js
-/// orion.webnav.dump()       // → {route, name, declaredUri, canPop, stackDepth, browserUrl, browserPath}
-/// orion.webnav.location()   // → the active route, e.g. "/settings"
-/// await orion.webnav.to('settings')   // open a screen (name or '/settings' path)
-/// await orion.webnav.back()           // close the current screen (back to the map)
-/// ```
+/// Heading is compass degrees: 0 = N, 90 = E, 180 = S, 270 = W. Commands return a
+/// Promise so scripts can `await` and sequence; map moves resolve to the camera
+/// after the move settles. A command can never throw across the interop boundary
+/// — a bad call (e.g. a relative move before `ready`) warns and resolves `null`.
 ///
 /// Installed on every build, all platforms including release/prod.
 void installInteractionConsoleBridge(
     InteractionController bus, MapNavigationController nav) {
+  // --- Shared wrappers: commands never throw across interop / leave an unhandled
+  // rejection; reads tolerate a not-ready map/router. `body` runs INSIDE the async
+  // closure, so a synchronous controller throw becomes a caught rejection.
+  JSPromise<JSAny?> command(Future<JSAny?> Function() body) {
+    Future<JSAny?> run() async {
+      try {
+        return await body();
+      } catch (e) {
+        web.console.warn('orion: $e'.toJS);
+        return null;
+      }
+    }
+
+    return run().toJS;
+  }
+
+  JSAny? read(JSAny? Function() fn) {
+    try {
+      return fn();
+    } catch (e) {
+      web.console.warn('orion: $e'.toJS);
+      return null;
+    }
+  }
+
+  JSPromise<JSAny?> dispatch(String id, [Map<String, Object?>? payload]) =>
+      command(() async {
+        await bus.dispatch(id,
+            origin: InteractionOrigin.programmatic, payload: payload);
+        return null;
+      });
+
   final api = JSObject();
 
-  api.setProperty('dispatch'.toJS, ((JSString id, [JSAny? payload]) {
+  // === orion.bus → InteractionController ===================================
+  final busApi = JSObject();
+
+  // bus.dispatch(id, payload?) — fire any registered id. Unknown id warns and is
+  // a no-op (returns null, not a Promise).
+  busApi.setProperty('dispatch'.toJS, ((JSString id, [JSAny? payload]) {
     final dartId = id.toDart;
     if (!InteractionIds.all.contains(dartId)) {
       web.console.warn(
-          'orion: unknown interaction "$dartId" — see orion.ids'.toJS);
+          'orion: unknown interaction "$dartId" — see orion.bus.ids'.toJS);
       return null;
     }
     final data = payload?.dartify();
-    Future<JSAny?> run() async {
-      await bus.dispatch(
-        dartId,
-        origin: InteractionOrigin.programmatic,
-        payload: data is Map ? data.cast<String, Object?>() : null,
-      );
-      return null;
-    }
-
-    return run().toJS;
+    return dispatch(
+        dartId, data is Map ? data.cast<String, Object?>() : null);
   }).toJS);
 
-  // Named shortcuts for the common HUD taps, so callers don't hand-type the id:
-  // `await orion.followMe()`, `await orion.resetOrientation()`. Each is just
-  // `dispatch(id)` (origin=programmatic) and returns its Promise.
-  JSPromise<JSAny?> tap(String id) {
-    Future<JSAny?> run() async {
-      await bus.dispatch(id, origin: InteractionOrigin.programmatic);
-      return null;
-    }
-
-    return run().toJS;
-  }
-
-  // Toggle/cycle follow-me (the location FAB).
-  api.setProperty(
-      'followMe'.toJS, (() => tap(InteractionIds.followMeTap)).toJS);
-  // Reset orientation — north-up, flat (the compass button).
-  api.setProperty('resetOrientation'.toJS,
-      (() => tap(InteractionIds.resetOrientationTap)).toJS);
-
-  api.setProperty(
+  busApi.setProperty(
       'ids'.toJS, [for (final id in InteractionIds.all) id.toJS].toJS);
 
-  // Toggle the per-event log line at runtime: `orion.logEvents(true)`. Called
-  // with no arg, just reports the current state. Goes through the persisted
-  // setting now, so it survives restarts like the in-app switch.
-  api.setProperty('logEvents'.toJS, ((JSBoolean? on) {
-    if (on != null) SettingsController.instance.setLogEventsEnabled(on.toDart);
-    return SettingsController.instance.logEventsEnabled.toJS;
-  }).toJS);
+  // bus.dump() — log the buffer as readable lines and return the records as JS
+  // objects ({id, origin, at, payload}) for inspection or replay.
+  busApi.setProperty('dump'.toJS, (() => read(() {
+        web.console.log(bus.dump().toJS);
+        return [
+          for (final r in bus.recent())
+            {
+              'id': r.id,
+              'origin': r.origin.name,
+              'at': r.at.toIso8601String(),
+              'payload': r.payload,
+            }.jsify(),
+        ].toJS;
+      })).toJS);
 
-  // `orion.dump()` — log the captured buffer as readable lines and return the
-  // records as JS objects ({id, origin, at, payload}) so they can be inspected
-  // or replayed via orion.dispatch(rec.id, rec.payload).
-  api.setProperty('dump'.toJS, (() {
-    web.console.log(bus.dump().toJS);
-    return [
-      for (final r in bus.recent())
-        {
-          'id': r.id,
-          'origin': r.origin.name,
-          'at': r.at.toIso8601String(),
-          'payload': r.payload,
-        }.jsify(),
-    ].toJS;
-  }).toJS);
+  // bus.hud.* — convenience shortcuts for the common HUD taps (each just
+  // dispatches its id, so it's still recorded).
+  final hud = JSObject();
+  hud.setProperty(
+      'followMe'.toJS, (() => dispatch(InteractionIds.followMeTap)).toJS);
+  hud.setProperty('resetOrientation'.toJS,
+      (() => dispatch(InteractionIds.resetOrientationTap)).toJS);
+  busApi.setProperty('hud'.toJS, hud);
 
-  // A Promise resolving once the map is usable: `await orion.ready`.
-  Future<JSAny?> ready() async {
-    await _mapReady.future;
-    return null;
-  }
+  api.setProperty('bus'.toJS, busApi);
 
-  api.setProperty('ready'.toJS, ready().toJS);
+  // === orion.map → MapNavigationController =================================
+  final mapApi = JSObject();
 
-  // --- orion.mapnav: live-camera reads + relative moves (MapNavigationController).
+  // map.camera() — the live camera as a flat object, or null if not ready (read).
+  mapApi.setProperty(
+      'camera'.toJS, (() => read(() => nav.camera?.toMap().jsify())).toJS);
 
-  final mapnav = JSObject();
+  // Each move resolves (best-effort to the current camera) once the dispatch
+  // handler runs. nav.* is invoked inside `command`, so a not-ready map yields a
+  // warned, resolved null rather than a raw thrown StateError.
+  JSPromise<JSAny?> move(Future<void> Function() body) =>
+      command(() async {
+        await body();
+        return nav.camera?.toMap().jsify();
+      });
 
-  // `orion.mapnav.camera()` — the live camera as a flat object, or null if the
-  // map isn't ready yet.
-  mapnav.setProperty('camera'.toJS, (() => nav.camera?.toMap().jsify()).toJS);
-
-  // Each move returns a Promise resolving (best-effort to the current camera)
-  // once the dispatch handler runs, so callers can `await`. Re-read camera() after
-  // the map settles for the final position.
-  JSPromise<JSAny?> afterMove(Future<void> move) {
-    Future<JSAny?> run() async {
-      await move;
-      return nav.camera?.toMap().jsify();
-    }
-
-    return run().toJS;
-  }
-
-  // move(heading°, metres) / moveKm(heading°, km): travel from the current center
-  // along the compass heading. 0 = N, 90 = E, 180 = S, 270 = W.
-  mapnav.setProperty(
+  mapApi.setProperty(
       'move'.toJS,
-      ((JSNumber heading, JSNumber meters) => afterMove(nav.moveBy(
+      ((JSNumber heading, JSNumber meters) => move(() => nav.moveBy(
           meters: meters.toDartDouble,
           headingDegrees: heading.toDartDouble))).toJS);
-  mapnav.setProperty(
+  mapApi.setProperty(
       'moveKm'.toJS,
-      ((JSNumber heading, JSNumber km) => afterMove(nav.moveBy(
+      ((JSNumber heading, JSNumber km) => move(() => nav.moveBy(
           meters: km.toDartDouble * 1000,
           headingDegrees: heading.toDartDouble))).toJS);
-
-  mapnav.setProperty('zoomBy'.toJS,
-      ((JSNumber delta) => afterMove(nav.zoomBy(delta.toDartDouble))).toJS);
-  mapnav.setProperty(
-      'rotateBy'.toJS,
-      ((JSNumber degrees) => afterMove(nav.rotateBy(degrees.toDartDouble)))
+  mapApi.setProperty('zoomBy'.toJS,
+      ((JSNumber delta) => move(() => nav.zoomBy(delta.toDartDouble))).toJS);
+  mapApi.setProperty('rotateBy'.toJS,
+      ((JSNumber degrees) => move(() => nav.rotateBy(degrees.toDartDouble)))
           .toJS);
-  mapnav.setProperty('tiltBy'.toJS,
-      ((JSNumber degrees) => afterMove(nav.tiltBy(degrees.toDartDouble))).toJS);
-  mapnav.setProperty(
+  mapApi.setProperty('tiltBy'.toJS,
+      ((JSNumber degrees) => move(() => nav.tiltBy(degrees.toDartDouble))).toJS);
+  mapApi.setProperty(
       'panTo'.toJS,
       ((JSNumber lat, JSNumber lng) =>
-          afterMove(nav.panTo(lat.toDartDouble, lng.toDartDouble))).toJS);
+          move(() => nav.panTo(lat.toDartDouble, lng.toDartDouble))).toJS);
 
-  api.setProperty('mapnav'.toJS, mapnav);
+  api.setProperty('map'.toJS, mapApi);
 
-  // --- orion.webnav: inspect/drive screen navigation. dump() shows the router's
-  // state next to the browser URL side by side.
+  // === orion.settings → SettingsController ================================
+  final settingsApi = JSObject();
 
-  final webnav = JSObject();
+  // settings.logEvents(on?) — with an arg, dispatch settings.logEvents.set (so the
+  // toggle is recorded/replayable and persisted); with no arg, read the current
+  // value. Returns a Promise resolving to the resulting value.
+  settingsApi.setProperty('logEvents'.toJS, ((JSBoolean? on) {
+    if (on == null) {
+      return SettingsController.instance.logEventsEnabled.toJS;
+    }
+    return command(() async {
+      await bus.dispatch(InteractionIds.settingsLogEventsSet,
+          origin: InteractionOrigin.programmatic,
+          payload: {'enabled': on.toDart});
+      return SettingsController.instance.logEventsEnabled.toJS;
+    });
+  }).toJS);
+
+  api.setProperty('settings'.toJS, settingsApi);
+
+  // === orion.tracks → tracks data layer ===================================
+  final tracksApi = JSObject();
+
+  // tracks.clearTracks() — delete ALL stored tracks (imported or not). Destructive.
+  tracksApi.setProperty('clearTracks'.toJS,
+      (() => dispatch(InteractionIds.dataTracksClear)).toJS);
+
+  api.setProperty('tracks'.toJS, tracksApi);
+
+  // === orion.webnav → go_router ===========================================
+  final webnavApi = JSObject();
 
   // Router state (shared with native via routerNavState) + the browser URL.
   Map<String, Object?> navState() => {
@@ -205,56 +231,36 @@ void installInteractionConsoleBridge(
         'browserPath': web.window.location.pathname,
       };
 
-  // `orion.webnav.dump()` — log the nav state and return it as a JS object.
-  webnav.setProperty('dump'.toJS, (() {
-    final state = navState();
-    web.console.log(state.jsify());
-    return state.jsify();
+  webnavApi.setProperty('dump'.toJS, (() => read(() {
+        final state = navState();
+        web.console.log(state.jsify());
+        return state.jsify();
+      })).toJS);
+
+  webnavApi.setProperty(
+      'location'.toJS,
+      (() => read(() => (routerNavState()['route'] as String?)?.toJS)).toJS);
+
+  // webnav.to(screen) — open a screen (dispatches nav.screen.open). Accepts the
+  // route name ('settings') or path ('/settings'; leading slash stripped).
+  webnavApi.setProperty('to'.toJS, ((JSString screen) {
+    final s = screen.toDart.replaceFirst(RegExp(r'^/'), '');
+    return dispatch(InteractionIds.navScreenOpen, {'screen': s});
   }).toJS);
 
-  // `orion.webnav.location()` — the active route, e.g. "/settings" (null before
-  // the first route resolves).
-  webnav.setProperty(
-      'location'.toJS, (() => (routerNavState()['route'] as String?)?.toJS).toJS);
+  // webnav.back() — close the current screen (dispatches nav.screen.close).
+  webnavApi.setProperty(
+      'back'.toJS, (() => dispatch(InteractionIds.navScreenClose)).toJS);
 
-  // Dispatch a known id programmatically, returning its Promise (shares the
-  // origin/await wiring with the top-level orion.dispatch).
-  JSPromise<JSAny?> dispatchProgrammatic(String id,
-      [Map<String, Object?>? payload]) {
-    Future<JSAny?> run() async {
-      await bus.dispatch(id,
-          origin: InteractionOrigin.programmatic, payload: payload);
-      return null;
-    }
+  api.setProperty('webnav'.toJS, webnavApi);
 
-    return run().toJS;
+  // === top-level: ready (backs no controller) =============================
+  Future<JSAny?> ready() async {
+    await _mapReady.future;
+    return null;
   }
 
-  // `orion.webnav.to(screen)` — open a screen (dispatches nav.screen.open).
-  // Accepts the route name ('settings') or the path ('/settings', as dump()
-  // reports — the leading slash is stripped). Returns a Promise.
-  webnav.setProperty('to'.toJS, ((JSString screen) {
-    final s = screen.toDart.replaceFirst(RegExp(r'^/'), '');
-    return dispatchProgrammatic(
-        InteractionIds.navScreenOpen, {'screen': s});
-  }).toJS);
-
-  // `orion.webnav.back()` — close the current screen (dispatches nav.screen.close).
-  webnav.setProperty('back'.toJS,
-      (() => dispatchProgrammatic(InteractionIds.navScreenClose)).toJS);
-
-  api.setProperty('webnav'.toJS, webnav);
-
-  // --- orion.data: destructive data ops.
-
-  final data = JSObject();
-
-  // `orion.data.clearTracks()` — delete ALL stored tracks (imported or not).
-  // Destructive; returns a Promise that resolves once the DB is cleared.
-  data.setProperty('clearTracks'.toJS,
-      (() => dispatchProgrammatic(InteractionIds.dataTracksClear)).toJS);
-
-  api.setProperty('data'.toJS, data);
+  api.setProperty('ready'.toJS, ready().toJS);
 
   web.window.setProperty('orion'.toJS, api);
 }

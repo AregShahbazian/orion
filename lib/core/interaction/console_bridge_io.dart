@@ -13,68 +13,61 @@ import 'interaction_ids.dart';
 /// map_screen call compiles on both platforms.
 void signalMapReady() {}
 
-/// Native: there's no browser console, so the same controls are exposed as VM
-/// service extensions instead. Drive them from a laptop over the (USB- or
-/// Wi-Fi-forwarded) VM Service via `scripts/mobile/orion.sh`:
+/// Native: there's no browser console, so the same namespaced contract as the web
+/// `window.orion` is exposed as VM service extensions. VM extensions are a flat
+/// registry, so the namespace is encoded in the extension name
+/// (`ext.orion.<namespace>.<call>`) — but the vocabulary matches the web bridge
+/// one-to-one. Drive them from a laptop over the (USB/Wi-Fi-forwarded) VM Service
+/// via `scripts/mobile/orion.sh` (`ext.orion.$cmd` accepts dotted names):
 ///
 /// ```
-/// ext.orion.ids                                  // → valid interaction ids
-/// ext.orion.dispatch  { id, payload }            // fire one interaction
-/// ext.orion.followMe                             // tap the location FAB
-/// ext.orion.resetOrientation                     // tap the compass (north-up)
-/// ext.orion.logEvents { on }                     // toggle per-event logging
-/// ext.orion.dump                                 // → the captured buffer
-/// ext.orion.camera                               // → the live camera | null
-/// ext.orion.moveBy    { meters, heading }        // relative move (heading 0=N,90=E)
-/// ext.orion.zoomBy    { delta }                  // relative zoom (+in / -out)
-/// ext.orion.rotateBy  { degrees }                // relative rotate
-/// ext.orion.tiltBy    { degrees }                // relative tilt
-/// ext.orion.webnav                               // → current screen route + nav state
+/// ext.orion.bus.ids                                  // → valid interaction ids
+/// ext.orion.bus.dispatch       { id, payload }       // fire one interaction
+/// ext.orion.bus.dump                                 // → the captured buffer
+/// ext.orion.bus.hud.followMe                         // tap the location FAB
+/// ext.orion.bus.hud.resetOrientation                 // tap the compass (north-up)
+/// ext.orion.map.camera                               // → the live camera | null
+/// ext.orion.map.move           { meters, heading }   // relative move (0=N,90=E)
+/// ext.orion.map.moveKm         { km, heading }       // relative move in km
+/// ext.orion.map.zoomBy         { delta }             // relative zoom (+in/-out)
+/// ext.orion.map.rotateBy       { degrees }           // relative rotate
+/// ext.orion.map.tiltBy         { degrees }           // relative tilt
+/// ext.orion.map.panTo          { lat, lng }          // absolute center
+/// ext.orion.settings.logEvents { on }                // dispatch settings.logEvents.set
+/// ext.orion.tracks.clearTracks                       // delete ALL tracks (destructive)
+/// ext.orion.webnav.dump                              // → screen route + nav state
+/// ext.orion.webnav.location                          // → active route only
+/// ext.orion.webnav.to          { screen }            // open a screen
+/// ext.orion.webnav.back                              // close the current screen
 /// ```
+///
+/// Commands route through the interaction bus (origin = programmatic) so they're
+/// recorded/replayable; reads call the controller/getter directly. A handler
+/// never lets an exception escape — a bad call (map not ready, bad param) returns
+/// a structured `invalidParams` error response.
 ///
 /// Service extensions only exist where the VM Service is attached — debug and
 /// profile builds. In a release AOT build these registrations are inert.
 void installInteractionConsoleBridge(
     InteractionController bus, MapNavigationController nav) {
-  _register('ext.orion.ids', (_, _) async => _ok({'ids': InteractionIds.all.toList()}));
+  Future<void> fire(String id, [Map<String, Object?>? payload]) => bus.dispatch(
+      id,
+      origin: InteractionOrigin.programmatic,
+      payload: payload);
 
-  _register('ext.orion.dispatch', (_, params) async {
+  // === bus → InteractionController ========================================
+  _cmd('ext.orion.bus.ids', (_) async => {'ids': InteractionIds.all.toList()});
+
+  _cmd('ext.orion.bus.dispatch', (params) async {
     final id = params['id'] ?? '';
     if (!InteractionIds.all.contains(id)) {
-      return developer.ServiceExtensionResponse.error(
-        developer.ServiceExtensionResponse.invalidParams,
-        'unknown interaction "$id" — see ext.orion.ids',
-      );
+      throw 'unknown interaction "$id" — see ext.orion.bus.ids';
     }
-    await bus.dispatch(id,
-        origin: InteractionOrigin.programmatic, payload: _payload(params));
-    return _ok({'dispatched': id});
+    await fire(id, _payload(params));
+    return {'dispatched': id};
   });
 
-  // Named shortcuts for the common HUD taps (mirror orion.followMe / .resetOrientation).
-  _register('ext.orion.followMe', (_, _) async {
-    await bus.dispatch(InteractionIds.followMeTap,
-        origin: InteractionOrigin.programmatic);
-    return _ok({'dispatched': InteractionIds.followMeTap});
-  });
-
-  _register('ext.orion.resetOrientation', (_, _) async {
-    await bus.dispatch(InteractionIds.resetOrientationTap,
-        origin: InteractionOrigin.programmatic);
-    return _ok({'dispatched': InteractionIds.resetOrientationTap});
-  });
-
-  _register('ext.orion.logEvents', (_, params) async {
-    // Goes through the persisted setting now (not just bus.logEvents), so the
-    // toggle survives restarts like the in-app switch.
-    final on = params['on'];
-    if (on != null) {
-      await SettingsController.instance.setLogEventsEnabled(on == 'true');
-    }
-    return _ok({'logEvents': SettingsController.instance.logEventsEnabled});
-  });
-
-  _register('ext.orion.dump', (_, _) async => _ok({
+  _cmd('ext.orion.bus.dump', (_) async => {
         'records': [
           for (final r in bus.recent())
             {
@@ -84,40 +77,88 @@ void installInteractionConsoleBridge(
               'payload': r.payload,
             },
         ],
-      }));
+      });
 
-  // --- Map navigation (MapNavigationController) ---
+  _cmd('ext.orion.bus.hud.followMe', (_) async {
+    await fire(InteractionIds.followMeTap);
+    return {'dispatched': InteractionIds.followMeTap};
+  });
 
-  _register('ext.orion.camera', (_, _) async => _ok({'camera': nav.camera?.toMap()}));
+  _cmd('ext.orion.bus.hud.resetOrientation', (_) async {
+    await fire(InteractionIds.resetOrientationTap);
+    return {'dispatched': InteractionIds.resetOrientationTap};
+  });
 
-  _register('ext.orion.moveBy', (_, params) async {
+  // === map → MapNavigationController ======================================
+  _cmd('ext.orion.map.camera', (_) async => {'camera': nav.camera?.toMap()});
+
+  _cmd('ext.orion.map.move', (params) async {
     await nav.moveBy(
-      meters: _double(params, 'meters'),
-      headingDegrees: _double(params, 'heading'),
-    );
-    return _ok({'camera': nav.camera?.toMap()});
+        meters: _double(params, 'meters'),
+        headingDegrees: _double(params, 'heading'));
+    return {'camera': nav.camera?.toMap()};
   });
 
-  _register('ext.orion.zoomBy', (_, params) async {
+  _cmd('ext.orion.map.moveKm', (params) async {
+    await nav.moveBy(
+        meters: _double(params, 'km') * 1000,
+        headingDegrees: _double(params, 'heading'));
+    return {'camera': nav.camera?.toMap()};
+  });
+
+  _cmd('ext.orion.map.zoomBy', (params) async {
     await nav.zoomBy(_double(params, 'delta'));
-    return _ok({'camera': nav.camera?.toMap()});
+    return {'camera': nav.camera?.toMap()};
   });
 
-  _register('ext.orion.rotateBy', (_, params) async {
+  _cmd('ext.orion.map.rotateBy', (params) async {
     await nav.rotateBy(_double(params, 'degrees'));
-    return _ok({'camera': nav.camera?.toMap()});
+    return {'camera': nav.camera?.toMap()};
   });
 
-  _register('ext.orion.tiltBy', (_, params) async {
+  _cmd('ext.orion.map.tiltBy', (params) async {
     await nav.tiltBy(_double(params, 'degrees'));
-    return _ok({'camera': nav.camera?.toMap()});
+    return {'camera': nav.camera?.toMap()};
   });
 
-  // --- Screen navigation (go_router) ---
+  _cmd('ext.orion.map.panTo', (params) async {
+    await nav.panTo(_double(params, 'lat'), _double(params, 'lng'));
+    return {'camera': nav.camera?.toMap()};
+  });
 
-  // Shared with the web bridge via routerNavState() so both report identically
-  // (no browser URL on native).
-  _register('ext.orion.webnav', (_, _) async => _ok(routerNavState()));
+  // === settings → SettingsController ======================================
+  _cmd('ext.orion.settings.logEvents', (params) async {
+    // Dispatch settings.logEvents.set (recorded/replayable + persisted) instead
+    // of poking SettingsController directly; no arg = read current value.
+    final on = params['on'];
+    if (on != null) {
+      await fire(InteractionIds.settingsLogEventsSet, {'enabled': on == 'true'});
+    }
+    return {'logEvents': SettingsController.instance.logEventsEnabled};
+  });
+
+  // === tracks → tracks data layer =========================================
+  _cmd('ext.orion.tracks.clearTracks', (_) async {
+    await fire(InteractionIds.dataTracksClear);
+    return {'dispatched': InteractionIds.dataTracksClear};
+  });
+
+  // === webnav → go_router =================================================
+  // Shared with the web bridge via routerNavState() (no browser URL on native).
+  _cmd('ext.orion.webnav.dump', (_) async => routerNavState());
+  _cmd('ext.orion.webnav.location',
+      (_) async => {'route': routerNavState()['route']});
+
+  _cmd('ext.orion.webnav.to', (params) async {
+    final screen = (params['screen'] ?? '').replaceFirst(RegExp(r'^/'), '');
+    await fire(InteractionIds.navScreenOpen, {'screen': screen});
+    return {'dispatched': InteractionIds.navScreenOpen, 'screen': screen};
+  });
+
+  _cmd('ext.orion.webnav.back', (_) async {
+    await fire(InteractionIds.navScreenClose);
+    return {'dispatched': InteractionIds.navScreenClose};
+  });
 }
 
 /// Parse a numeric service-extension param (all params arrive as strings).
@@ -134,6 +175,23 @@ Map<String, Object?>? _payload(Map<String, String> params) {
 
 developer.ServiceExtensionResponse _ok(Object? data) =>
     developer.ServiceExtensionResponse.result(jsonEncode(data));
+
+/// Register a command handler that never lets an exception escape: any throw
+/// (map not ready, bad param, decode failure) becomes a clean `invalidParams`
+/// response instead of an opaque RPC failure.
+void _cmd(String name,
+    Future<Map<String, Object?>> Function(Map<String, String> params) body) {
+  _register(name, (_, params) async {
+    try {
+      return _ok(await body(params));
+    } catch (e) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.invalidParams,
+        '$e',
+      );
+    }
+  });
+}
 
 /// Register tolerantly: a hot restart re-runs `main` against an isolate that
 /// already has the extension, which would otherwise throw.

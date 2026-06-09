@@ -65,16 +65,20 @@ The app exposes `window.orion`. Use `browser_evaluate` to call it. This is the
 **reliable** way to trigger user actions:
 
 ```js
-await window.orion.followMe()                     // tap the location FAB (shortcut)
-await window.orion.resetOrientation()             // tap the compass (shortcut)
-await window.orion.dispatch('hud.followMe.tap')   // or fire any action by ID
-window.orion.ids                                  // list known action IDs
-window.orion.logEvents(true)                      // stream events to console
-window.orion.dump()                               // dump current state
+await window.orion.bus.hud.followMe()             // tap the location FAB (shortcut)
+await window.orion.bus.hud.resetOrientation()     // tap the compass (shortcut)
+await window.orion.bus.dispatch('hud.followMe.tap')  // or fire any action by ID
+window.orion.bus.ids                              // list known action IDs
+await window.orion.settings.logEvents(true)       // stream events to console
+window.orion.bus.dump()                           // dump the interaction buffer
 ```
 
-Common HUD taps have named shortcuts (`orion.followMe()`,
-`orion.resetOrientation()`); anything else goes through `orion.dispatch(id)`.
+The bridge is namespaced to mirror the controllers: `bus.*` (the command bus),
+`map.*` (camera/moves), `settings.*`, `tracks.*`, `webnav.*`, plus top-level
+`ready`. Commands route through the bus (recorded/replayable); reads
+(`bus.ids`, `bus.dump`, `map.camera`, `settings.logEvents()` with no arg,
+`webnav.*` reads) call directly. Common HUD taps have shortcuts under
+`orion.bus.hud.*`; anything else goes through `orion.bus.dispatch(id)`.
 
 Known action IDs seen so far: `hud.followMe.tap`, `hud.resetOrientation.tap`,
 `map.follow.dismissed`, `map.zoom.changed`, `map.scroll.changed`,
@@ -82,36 +86,38 @@ Known action IDs seen so far: `hud.followMe.tap`, `hud.resetOrientation.tap`,
 
 Read console output with `browser_console_messages`.
 
-### Map navigation — `orion.mapnav`
+### Map navigation — `orion.map`
 
 For reading the live camera and making **relative** moves (which the absolute
-`map.*.changed` ids can't express), use the `orion.mapnav` namespace (backed by
+`map.*.changed` ids can't express), use the `orion.map` namespace (backed by
 `MapNavigationController`). Each move reads the current center, converts heading +
 distance into a target, and dispatches it through the bus (so it's logged):
 
 ```js
-orion.mapnav.camera()              // → {lat, lng, zoom, bearing, tilt} | null
-await orion.mapnav.move(90, 5000)  // move(heading°, metres) — 5 km east
-await orion.mapnav.moveKm(90, 5)   // moveKm(heading°, km) — same
-await orion.mapnav.zoomBy(1)       // relative zoom (negative = out)
-await orion.mapnav.rotateBy(45)    // relative rotate, clockwise degrees
-await orion.mapnav.tiltBy(30)      // relative pitch degrees
-await orion.mapnav.panTo(13.75, 100.5)  // absolute center
+orion.map.camera()              // → {lat, lng, zoom, bearing, tilt} | null
+await orion.map.move(90, 5000)  // move(heading°, metres) — 5 km east
+await orion.map.moveKm(90, 5)   // moveKm(heading°, km) — same
+await orion.map.zoomBy(1)       // relative zoom (negative = out)
+await orion.map.rotateBy(45)    // relative rotate, clockwise degrees
+await orion.map.tiltBy(30)      // relative pitch degrees
+await orion.map.panTo(13.75, 100.5)  // absolute center
 ```
 
 Heading is compass degrees: **0 = N, 90 = E, 180 = S, 270 = W** (east ≈ screen
-"right" when north-up).
+"right" when north-up). A relative move issued before `await orion.ready`
+resolves warns and resolves `null` — it never throws.
 
 **Caveat — stale camera after a move.** MapLibre web resolves the camera
 animation future *before* `cameraPosition` reflects the new spot, so the value a
 move *returns* (and an immediate `camera()`) may be mid-flight. Re-read
-`orion.mapnav.camera()` after the map settles for the final position. Discrete,
+`orion.map.camera()` after the map settles for the final position. Discrete,
 hand-typed calls read the correct settled center, so chaining by hand is fine;
 rapid back-to-back relative moves in one script can compound off a stale read.
 
 On native (debug/profile), the same surface is exposed as VM-service extensions
-(`ext.orion.camera`, `ext.orion.moveBy {meters, heading}`, `ext.orion.zoomBy`,
-`ext.orion.rotateBy`, `ext.orion.tiltBy`) — see `lib/core/interaction/console_bridge_io.dart`.
+under matching dotted names (`ext.orion.map.camera`, `ext.orion.map.move
+{meters, heading}`, `ext.orion.map.zoomBy`, `ext.orion.map.rotateBy`,
+`ext.orion.map.tiltBy`) — see `lib/core/interaction/console_bridge_io.dart`.
 
 ## What did NOT work
 

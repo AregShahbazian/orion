@@ -13,11 +13,13 @@
 // http(s) or ws(s) all work. Everything is localhost-forwarded, so it keeps
 // working across Wi-Fi/LAN switches without re-registering anything.
 //
-// Examples (via the wrapper):
-//   ./scripts/mobile/orion.sh dump
-//   ./scripts/mobile/orion.sh logEvents on=true
-//   ./scripts/mobile/orion.sh ids
-//   ./scripts/mobile/orion.sh dispatch id=map.zoom.changed payload={"zoom":12}
+// The command is the namespaced extension suffix (dotted) — `ext.orion.$cmd` —
+// matching the web `window.orion` contract (bus.*, map.*, settings.*, tracks.*,
+// webnav.*). Examples (via the wrapper):
+//   ./scripts/mobile/orion.sh bus.dump
+//   ./scripts/mobile/orion.sh settings.logEvents on=true
+//   ./scripts/mobile/orion.sh bus.ids
+//   ./scripts/mobile/orion.sh bus.dispatch id=map.zoom.changed payload={"zoom":12}
 //
 // The `logs` command is special: instead of an ext.orion call it subscribes to
 // the VM `Logging` stream (where `devLog` lands) and prints matching records as

@@ -6,9 +6,10 @@ Dev helper scripts, grouped by target. Run from the repo root.
 - **`run.sh`** — `flutter run -d chrome` (the primary dev loop). Forwards extra args.
 
 Driving interactions on web needs no script: the console bridge exposes
-`window.orion` in the browser DevTools console —
-`await orion.dispatch('hud.followMe.tap')`, `orion.logEvents(true)`,
-`orion.dump()`, `orion.ids`.
+`window.orion` in the browser DevTools console, namespaced to mirror the
+controllers (`bus.*`, `map.*`, `settings.*`, `tracks.*`, `webnav.*`) —
+`await orion.bus.dispatch('hud.followMe.tap')`,
+`await orion.settings.logEvents(true)`, `orion.bus.dump()`, `orion.bus.ids`.
 
 ## `mobile/` — on-device (Android) loop + remote control
 - **`run.sh`** — `flutter run` with native/GPU log noise filtered out. Also records
@@ -16,11 +17,13 @@ Driving interactions on web needs no script: the console bridge exposes
   can find it with no copy-paste.
 - **`orion.sh`** — drive the running app's interactions from your laptop, the
   native counterpart to `window.orion`. Reads the recorded URI automatically:
+  The command is the namespaced extension suffix (dotted), matching `window.orion`:
   ```
-  ./scripts/mobile/orion.sh dump
-  ./scripts/mobile/orion.sh logEvents on=true
-  ./scripts/mobile/orion.sh dispatch id=map.zoom.changed payload='{"zoom":12}'
-  ./scripts/mobile/orion.sh ids
+  ./scripts/mobile/orion.sh bus.dump
+  ./scripts/mobile/orion.sh settings.logEvents on=true
+  ./scripts/mobile/orion.sh map.move meters=5000 heading=90
+  ./scripts/mobile/orion.sh bus.dispatch id=map.zoom.changed payload='{"zoom":12}'
+  ./scripts/mobile/orion.sh bus.ids
   ```
   It talks to the app's `ext.orion.*` VM service extensions
   (`lib/core/interaction/console_bridge_io.dart`) over the VM Service via

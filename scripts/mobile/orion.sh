@@ -4,10 +4,12 @@
 # .dart_tool/orion_vmservice on each launch; this just forwards your command to
 # the Dart tool, which reads that file.
 #
-#   ./scripts/mobile/orion.sh dump
-#   ./scripts/mobile/orion.sh logEvents on=true
-#   ./scripts/mobile/orion.sh dispatch id=map.zoom.changed payload='{"zoom":12}'
-#   ./scripts/mobile/orion.sh ids
+# The command is the namespaced extension suffix (dotted), matching window.orion:
+#   ./scripts/mobile/orion.sh bus.dump
+#   ./scripts/mobile/orion.sh bus.ids
+#   ./scripts/mobile/orion.sh settings.logEvents on=true
+#   ./scripts/mobile/orion.sh map.move meters=5000 heading=90
+#   ./scripts/mobile/orion.sh bus.dispatch id=map.zoom.changed payload='{"zoom":12}'
 #
 # Override the URI ad-hoc by passing it first or setting $ORION_VM.
 set -euo pipefail

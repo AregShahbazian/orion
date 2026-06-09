@@ -5,8 +5,8 @@
 #
 # To drive interactions on web there's no companion script: the console bridge
 # exposes `window.orion` in the browser DevTools console directly, e.g.
-#   await orion.dispatch('hud.followMe.tap')
-#   orion.logEvents(true); orion.dump(); orion.ids
+#   await orion.bus.dispatch('hud.followMe.tap')
+#   await orion.settings.logEvents(true); orion.bus.dump(); orion.bus.ids
 set -euo pipefail
 
 command -v flutter >/dev/null || { echo "flutter not found on PATH" >&2; exit 1; }

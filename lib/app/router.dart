@@ -62,7 +62,7 @@ final GoRouter appRouter = GoRouter(
 );
 
 /// The current screen-navigation state, shared by the web (`orion.webnav`) and
-/// native (`ext.orion.webnav`) dev bridges so they report identically. Safe
+/// native (`ext.orion.webnav.*`) dev bridges so they report identically. Safe
 /// before the first route resolves (returns nulls rather than throwing).
 Map<String, Object?> routerNavState() {
   final cfg = appRouter.routerDelegate.currentConfiguration;
