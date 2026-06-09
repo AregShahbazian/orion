@@ -1,14 +1,43 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'app.dart';
 import 'app/router.dart';
 import 'core/interaction/console_bridge.dart';
 import 'core/interaction/interaction_controller.dart';
+import 'core/log/dev_log.dart';
 import 'features/map/map_navigation_controller.dart';
 import 'features/settings/settings_controller.dart';
 import 'features/tracks/tracks_interactions.dart';
 
 Future<void> main() async {
+  // Capture every uncaught error — both Flutter framework errors and anything
+  // that escapes to the zone — as a single structured `orion.error` line, so a
+  // failure around a freeze/crash leaves a tagged, timestamped trail instead of
+  // a bare stack dump. Chain to the previous handler to keep Flutter's own
+  // red-screen/console reporting.
+  final priorOnError = FlutterError.onError;
+  FlutterError.onError = (details) {
+    devLog('error', {
+      'kind': 'flutter',
+      'message': details.exceptionAsString(),
+      'library': details.library,
+      'stack': details.stack?.toString(),
+    });
+    priorOnError?.call(details);
+  };
+
+  runZonedGuarded(_run, (error, stack) {
+    devLog('error', {
+      'kind': 'uncaught',
+      'message': error.toString(),
+      'stack': stack.toString(),
+    });
+  });
+}
+
+Future<void> _run() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Load persisted settings before the first frame so the toggles (long-press
