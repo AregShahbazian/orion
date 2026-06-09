@@ -2,6 +2,26 @@
 
 Mapping app.
 
+## Architecture
+
+Flutter app — Android, iOS, and Web from one codebase — for GPS tracking and
+offline maps. Offline-first, no backend. Full map in `docs/architecture.md`; read
+it before non-trivial work in `lib/`. The essentials:
+
+- **No state framework.** Hand-rolled `ChangeNotifier` singletons + one command bus.
+- **`InteractionController` is the spine** (`lib/core/interaction/`). Every user
+  action routes through it both ways — `dispatch` (run + record a handler) and
+  `observe` (record only). It makes the app console-drivable and every flow
+  auditable via a ring buffer. Never bypass it with an inline handler.
+- **Map:** `maplibre_gl` (MapLibre Native on mobile, GL JS on web), OpenFreeMap
+  `liberty` style, no API key.
+- **Persistence:** Drift/SQLite for tracks (`lib/core/db/`), SharedPreferences for
+  settings. GPX import/export lives in `lib/features/tracks/`.
+- **Platform split is compile-time** via conditional imports (`_io.dart` /
+  `_web.dart`), not runtime `kIsWeb` branches.
+- **Layout:** `lib/core/` (db, interaction, log, ui), `lib/features/`
+  (map, tracks, settings), `lib/app/` (router, observers), `main.dart` entry.
+
 ## Workflow docs
 
 Planning and workflow docs (MVP, phases, tasks, discussions, bug notes, the
