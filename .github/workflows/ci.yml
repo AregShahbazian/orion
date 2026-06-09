@@ -1,0 +1,37 @@
+name: ci
+
+# All tests on every push, to every branch. Non-blocking by design: it reports
+# (red badge / failed run), it doesn't gate merges. Mobile e2e is intentionally
+# excluded — it needs a device/emulator host (KVM) or a device farm; run that
+# on main-only/nightly later. See ~/ai/orion/dev/testing/prd.md.
+on: [push]
+
+jobs:
+  # Fast lane: unit + widget tests (everything under test/).
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter test
+
+  # Web E2E: the integration_test suite driven headless in Chrome.
+  web-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      # Chrome + a version-matched chromedriver on PATH, which scripts/web/e2e.sh
+      # needs. browser-actions installs both and aligns their versions.
+      - uses: browser-actions/setup-chrome@v1
+        with:
+          install-chromedriver: true
+      - run: flutter pub get
+      # The script defaults to --no-headless; --headless forwards last and wins.
+      # ORION_E2E (set inside the script) makes the boot deterministic.
+      - run: ./scripts/web/e2e.sh --headless
