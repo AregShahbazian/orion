@@ -8,7 +8,7 @@
 #   TARGET=integration_test/foo_test.dart ./scripts/mobile/e2e.sh
 set -euo pipefail
 
-TARGET="${TARGET:-integration_test/compass_reset_test.dart}"
+TARGET="${TARGET:-integration_test/all_tests.dart}"
 
 command -v flutter >/dev/null || { echo "flutter not found on PATH" >&2; exit 1; }
 

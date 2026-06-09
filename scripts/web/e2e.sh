@@ -13,7 +13,7 @@
 #   https://googlechromelabs.github.io/chrome-for-testing/
 set -euo pipefail
 
-TARGET="${TARGET:-integration_test/compass_reset_test.dart}"
+TARGET="${TARGET:-integration_test/all_tests.dart}"
 PORT=4444
 
 command -v flutter >/dev/null || { echo "flutter not found on PATH" >&2; exit 1; }
