@@ -15,4 +15,5 @@ command -v flutter >/dev/null || { echo "flutter not found on PATH" >&2; exit 1;
 exec flutter drive \
   --driver=test_driver/integration_test.dart \
   --target="$TARGET" \
+  --dart-define=ORION_E2E=true \
   "$@"

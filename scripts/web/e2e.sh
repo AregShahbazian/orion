@@ -5,6 +5,7 @@
 # (and stops the one it started on exit).
 #
 #   ./scripts/web/e2e.sh                                    # the moveKm POC
+#   ./scripts/web/e2e.sh hold                               # hold the window open until you Ctrl-C
 #   TARGET=integration_test/foo_test.dart ./scripts/web/e2e.sh
 #   ./scripts/web/e2e.sh --web-port 8080                    # extra args → flutter drive
 #
@@ -31,7 +32,25 @@ if ! port_open; then
   for _ in $(seq 10); do port_open && break; sleep 0.3; done
 fi
 
+# Use `-d web-server` (not `-d chrome`): Flutter only *serves* the app and
+# chromedriver drives a separate Chrome at it. With `-d chrome` Flutter launches
+# its own Chrome + debug service (dwds) that collides with chromedriver's, which
+# kills the connection (AppConnectionException) and closes the window.
+# `--no-headless` so you can watch the automated run in a real Chrome window.
+# chromedriver launches Chrome headless by default with `-d web-server`. Pass
+# `--headless` (it forwards after "$@", last-wins) for CI / unattended runs.
+# A leading `hold` arg holds the final state on screen until you Ctrl-C (the test
+# pumps indefinitely while the browser window is still open — see ORION_E2E_HOLD
+# in the test). `--keep-app-running` alone doesn't help: it keeps the web server
+# up but chromedriver still closes the browser. Consumed here; the rest forwards
+# to flutter drive.
+hold=()
+[ "${1:-}" = "hold" ] && { hold=(--dart-define=ORION_E2E_HOLD=true); shift; }
+
 flutter drive \
   --driver=test_driver/integration_test.dart \
   --target="$TARGET" \
-  -d chrome "$@"
+  --dart-define=ORION_E2E=true \
+  -d web-server \
+  --browser-name=chrome \
+  --no-headless "${hold[@]}" "$@"

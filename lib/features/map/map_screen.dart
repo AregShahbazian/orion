@@ -272,11 +272,12 @@ class _MapScreenState extends State<MapScreen> {
             styleString: kMapStyleUrl,
             // No default region — open on a whole-world view (explicit zoom, not
             // a degenerate default of 0), then follow the user's location once
-            // it's available (auto on native; tap-to-locate on web).
-            initialCameraPosition: const CameraPosition(
-              target: LatLng(0, 0),
-              zoom: 1,
-            ),
+            // it's available (auto on native; tap-to-locate on web). Under E2E,
+            // open at a fixed street-level camera instead, so tests get a stable,
+            // measurable baseline with no fly-to.
+            initialCameraPosition: kE2E
+                ? kE2eInitialCamera
+                : const CameraPosition(target: LatLng(0, 0), zoom: 1),
             onMapCreated: _onMapCreated,
             onStyleLoadedCallback: _onStyleLoaded,
             // User panned/zoomed while following → exit follow mode.

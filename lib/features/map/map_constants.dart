@@ -1,5 +1,22 @@
+import 'package:maplibre_gl/maplibre_gl.dart';
+
 /// OpenFreeMap `liberty` style — free, no API key, no usage limits.
 const String kMapStyleUrl = 'https://tiles.openfreemap.org/styles/liberty';
+
+/// E2E test mode, toggled by `--dart-define=ORION_E2E=true` (set by
+/// `scripts/{web,mobile}/e2e.sh`). When on, the app boots deterministically for
+/// the `integration_test` suite: the map opens at [kE2eInitialCamera] and the
+/// location auto-enable / fly-to-user is skipped (see [LocationController.init]
+/// and [MapScreen]'s `initialCameraPosition`), so a test gets a fixed baseline
+/// with no startup camera motion to chase.
+const bool kE2E = bool.fromEnvironment('ORION_E2E');
+
+/// Fixed initial camera used when [kE2E] — a usable street-level view so moves
+/// are both measurable and visible. Any stable spot works; Bangkok at zoom 12.
+const CameraPosition kE2eInitialCamera = CameraPosition(
+  target: LatLng(13.7563, 100.5018),
+  zoom: 12,
+);
 
 /// Street/neighborhood zoom the long-press "center on me" lands at. The app
 /// opens whole-world (zoom 1) and plain follow keeps the current zoom, so this
