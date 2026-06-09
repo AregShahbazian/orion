@@ -6,7 +6,12 @@
 // asserts it returned home. Route is read from appRouter — the same accessor the
 // console bridge's webnav.location() exposes.
 //
-// Run: ./scripts/web/e2e.sh   (web)   ·   ./scripts/mobile/e2e.sh -d <id>  (mobile)
+// MOBILE ONLY. This drives go_router navigation, which changes window.location
+// and (on native-back) browser history — that breaks the flutter_driver web
+// result channel under `flutter drive -d web-server` ($flutterDriverResult lost
+// → hang / DriverError). It runs fine on a real device. all_tests.dart gates it
+// behind `!kIsWeb`; run it directly only on mobile:
+//   TARGET=integration_test/settings_nav_test.dart ./scripts/mobile/e2e.sh -d <id>
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
