@@ -4,7 +4,7 @@
 # reports pass/fail. Starts a chromedriver on :4444 if one isn't already running
 # (and stops the one it started on exit).
 #
-#   ./scripts/web/e2e.sh                                    # the moveKm POC
+#   ./scripts/web/e2e.sh                                    # the default e2e suite
 #   ./scripts/web/e2e.sh hold                               # hold the window open until you Ctrl-C
 #   TARGET=integration_test/foo_test.dart ./scripts/web/e2e.sh
 #   ./scripts/web/e2e.sh --web-port 8080                    # extra args → flutter drive
@@ -13,7 +13,7 @@
 #   https://googlechromelabs.github.io/chrome-for-testing/
 set -euo pipefail
 
-TARGET="${TARGET:-integration_test/move_km_test.dart}"
+TARGET="${TARGET:-integration_test/compass_reset_test.dart}"
 PORT=4444
 
 command -v flutter >/dev/null || { echo "flutter not found on PATH" >&2; exit 1; }
