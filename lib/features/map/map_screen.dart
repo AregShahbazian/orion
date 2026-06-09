@@ -362,6 +362,10 @@ class _MapScreenState extends State<MapScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             LocationFab(
+                              // The follow-me FAB — keyed by its tap id (its
+                              // long-press sibling hud.followMe.longPress shares
+                              // the same `hud.followMe` subject/widget).
+                              key: const ValueKey(InteractionIds.followMeTap),
                               enabled: _location.enabled,
                               trackingMode: _location.trackingMode,
                               onPressed: _onLocationTap,
@@ -375,6 +379,7 @@ class _MapScreenState extends State<MapScreen> {
                             ),
                             const SizedBox(height: kHudControlGap),
                             HudButton(
+                              key: const ValueKey(InteractionIds.hudTracksTap),
                               semanticLabel: 'Tracks',
                               onPressed: () => _interactions
                                   .dispatch(InteractionIds.hudTracksTap),
@@ -382,6 +387,7 @@ class _MapScreenState extends State<MapScreen> {
                             ),
                             const SizedBox(height: kHudControlGap),
                             HudButton(
+                              key: const ValueKey(InteractionIds.settingsTap),
                               semanticLabel: 'Settings',
                               onPressed: () => _interactions
                                   .dispatch(InteractionIds.settingsTap),
