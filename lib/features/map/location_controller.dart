@@ -84,6 +84,9 @@ class LocationController extends ChangeNotifier {
   /// (denied → stays off, silently — no crash, no nagging). Web: just enable;
   /// the browser geolocate control handles its own prompt.
   Future<void> init() async {
+    // E2E: stay off so nothing auto-centres/flies to the user — the map keeps
+    // the fixed [kE2eInitialCamera] baseline the test relies on.
+    if (kE2E) return;
     if (kIsWeb) {
       _setEnabled(true);
       return;

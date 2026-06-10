@@ -272,11 +272,12 @@ class _MapScreenState extends State<MapScreen> {
             styleString: kMapStyleUrl,
             // No default region — open on a whole-world view (explicit zoom, not
             // a degenerate default of 0), then follow the user's location once
-            // it's available (auto on native; tap-to-locate on web).
-            initialCameraPosition: const CameraPosition(
-              target: LatLng(0, 0),
-              zoom: 1,
-            ),
+            // it's available (auto on native; tap-to-locate on web). Under E2E,
+            // open at a fixed street-level camera instead, so tests get a stable,
+            // measurable baseline with no fly-to.
+            initialCameraPosition: kE2E
+                ? kE2eInitialCamera
+                : const CameraPosition(target: LatLng(0, 0), zoom: 1),
             onMapCreated: _onMapCreated,
             onStyleLoadedCallback: _onStyleLoaded,
             // User panned/zoomed while following → exit follow mode.
@@ -339,6 +340,10 @@ class _MapScreenState extends State<MapScreen> {
                     alignment: Alignment.topRight,
                     child: PointerInterceptor(
                       child: CompassButton(
+                        // Key == the interaction id it dispatches, so tests can
+                        // `find.byKey(ValueKey(InteractionIds.resetOrientationTap))`
+                        // using the same vocabulary the bus/console bridge use.
+                        key: const ValueKey(InteractionIds.resetOrientationTap),
                         bearing: _bearing,
                         visible: _oriented,
                         onReset: () => _interactions
@@ -357,6 +362,10 @@ class _MapScreenState extends State<MapScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             LocationFab(
+                              // The follow-me FAB — keyed by its tap id (its
+                              // long-press sibling hud.followMe.longPress shares
+                              // the same `hud.followMe` subject/widget).
+                              key: const ValueKey(InteractionIds.followMeTap),
                               enabled: _location.enabled,
                               trackingMode: _location.trackingMode,
                               onPressed: _onLocationTap,
@@ -370,6 +379,7 @@ class _MapScreenState extends State<MapScreen> {
                             ),
                             const SizedBox(height: kHudControlGap),
                             HudButton(
+                              key: const ValueKey(InteractionIds.hudTracksTap),
                               semanticLabel: 'Tracks',
                               onPressed: () => _interactions
                                   .dispatch(InteractionIds.hudTracksTap),
@@ -377,6 +387,7 @@ class _MapScreenState extends State<MapScreen> {
                             ),
                             const SizedBox(height: kHudControlGap),
                             HudButton(
+                              key: const ValueKey(InteractionIds.settingsTap),
                               semanticLabel: 'Settings',
                               onPressed: () => _interactions
                                   .dispatch(InteractionIds.settingsTap),

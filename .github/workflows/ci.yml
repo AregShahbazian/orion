@@ -1,32 +1,77 @@
-# Build Orion (web + APK) on push and deploy to the VPS over SSH.
+# Orion CI — one workflow to test, build, and deploy on every push.
 #
-# Prod:    push to `main`            -> /web/        and /apk/
-# Preview: push to `feature/<name>`  -> /web/<name>/ and /apk/<name>/   (the `feature/`
-#          prefix is stripped; e.g. feature/my-feature -> /web/my-feature/).
+# Four independent jobs — none gates another, so a red test never blocks a
+# deploy (detection, not prevention; branch protection isn't available on this
+# private repo anyway):
+#   unit     — flutter test (unit + widget)
+#   web-e2e  — headless web integration_test suite (scripts/web/e2e.sh)
+#   web      — build release web  + deploy to VPS
+#   apk      — build release APK  + deploy to VPS
 #
-# Two independent jobs — apk failing never blocks web. Each builds AND deploys its own
-# artifact. Caddy already serves nested paths, so no VPS changes are needed for previews.
+# Deploy targets:
+#   Prod:    push to `main`                      -> /web/        and /apk/
+#   Preview: push to `feature/**` or `dev/**`    -> /web/<slot>/ and /apk/<slot>/
+#            (`feature/` is stripped; other refs keep their path, e.g.
+#             dev/testing -> /web/dev/testing/).
 #
 # Required GitHub config (Settings → Secrets and variables → Actions):
-#   Secret   VPS_SSH_KEY   private half of the CI deploy key
+#   Secret    VPS_SSH_KEY   private half of the CI deploy key
 #   Variables VPS_HOST / VPS_USER / VPS_PORT
 # Deploy root on the VPS: /root/orion/site/{web,apk}/  (served by Caddy — see deploy/).
 
-name: build-and-deploy
+name: ci
 
 on:
   push:
     branches:
       - main
       - 'feature/**'
+      - 'dev/**'
   workflow_dispatch: {}
 
 concurrency:
-  # Per-branch: a new push supersedes an in-flight build of the same branch only.
-  group: build-and-deploy-${{ github.ref }}
+  # Per-branch: a new push supersedes an in-flight run of the same branch only.
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # --- Tests (report-only; never block the build/deploy jobs) -----------------
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      # Exclude goldens — they're pixel-pinned and render differently across
+      # machines (fonts/GPU), so they're flaky on CI runners. They run locally
+      # (`flutter test`); see test/golden/ and dart_test.yaml.
+      - run: flutter test --exclude-tags golden
+
+  web-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      # Chrome + a version-matched chromedriver on PATH, which scripts/web/e2e.sh
+      # needs. Pin a concrete version so Chrome and chromedriver come from the
+      # same Chrome-for-Testing build — leaving it unpinned skews them (Chrome
+      # 148 vs chromedriver 151), breaking the session. Bump together when aged.
+      - uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: '148'
+          install-chromedriver: true
+      - run: flutter pub get
+      # The script defaults to --no-headless; --headless forwards last and wins.
+      # ORION_E2E (set inside the script) makes the boot deterministic.
+      - run: ./scripts/web/e2e.sh --headless
+
+  # --- Build + deploy ---------------------------------------------------------
   web:
     runs-on: ubuntu-latest
     steps:
@@ -39,9 +84,10 @@ jobs:
 
       - name: Compute deploy slot
         id: slot
-        # main -> served at /web/ (dir site/web), no slot. feature/<name> -> /web/<name>/.
-        # Preview dirs are isolated leaves, so they mirror with --delete; main must NOT use
-        # --delete (it would wipe the sibling preview subdirs under site/web).
+        # main -> served at /web/ (dir site/web), no slot. Others -> /web/<slot>/,
+        # where slot is the ref with a leading `feature/` stripped (dev/** etc.
+        # keep their path). Preview dirs are isolated leaves, so they mirror with
+        # --delete; main must NOT use --delete (it would wipe sibling previews).
         run: |
           ref="${GITHUB_REF#refs/heads/}"
           if [ "$ref" = "main" ]; then
@@ -98,8 +144,8 @@ jobs:
 
       - name: Compute deploy slot
         id: slot
-        # main -> site/apk ; feature/<name> -> site/apk/<name>. APK never uses --delete
-        # (versioned builds accumulate); the index is regenerated per directory.
+        # main -> site/apk ; others -> site/apk/<slot> (feature/ stripped). APK never
+        # uses --delete (versioned builds accumulate); the index is regenerated per dir.
         run: |
           ref="${GITHUB_REF#refs/heads/}"
           if [ "$ref" = "main" ]; then
