@@ -1,0 +1,6 @@
+# Declares the `golden` tag so `flutter test --exclude-tags golden` is clean (no
+# "unknown tag" warning). Golden tests are pixel-pinned and render slightly
+# differently across machines (fonts/GPU), so CI excludes them — they run
+# locally with `flutter test` (or `--update-goldens`). See .github/workflows/ci.yml.
+tags:
+  golden:

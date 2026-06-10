@@ -17,7 +17,8 @@ import 'package:orion/features/tracks/gpx_parser.dart';
 import 'package:orion/features/tracks/track_list_tile.dart';
 
 void main() {
-  testWidgets('track-list row (Gaia sample track)', (tester) async {
+  testWidgets('track-list row (Gaia sample track)', tags: 'golden',
+      (tester) async {
     final gaia = parseGpx(
         File('test/fixtures/gaia_sample.gpx').readAsStringSync());
     final sample = gaia.first; // real name + colour from the Gaia export.

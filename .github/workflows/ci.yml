@@ -45,7 +45,10 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter test
+      # Exclude goldens — they're pixel-pinned and render differently across
+      # machines (fonts/GPU), so they're flaky on CI runners. They run locally
+      # (`flutter test`); see test/golden/ and dart_test.yaml.
+      - run: flutter test --exclude-tags golden
 
   web-e2e:
     runs-on: ubuntu-latest
