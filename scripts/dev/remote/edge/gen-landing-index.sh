@@ -59,6 +59,14 @@ slots() {
 
 {
   echo '<!doctype html><meta charset="utf-8"><title>Orion releases</title>'
+  cat <<'HTML'
+<style>
+  body { background: #1b1b1f; color: #d4d4d8; font-family: system-ui, sans-serif; margin: 2rem; }
+  a { color: #8ab4f8; }
+  code { color: #e8b87d; }
+  li { margin: .35rem 0; }
+</style>
+HTML
   echo '<h2>Orion releases</h2><ul>'
   {
     # main
