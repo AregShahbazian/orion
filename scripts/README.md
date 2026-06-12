@@ -47,7 +47,18 @@ controllers (`bus.*`, `map.*`, `settings.*`, `tracks.*`, `webnav.*`) —
 
 Screenshots (`*.png`) dropped here are gitignored.
 
-## `dev/` — repo / worktree helpers
+## `dev/` — repo / worktree + edge ops
+- **`local/edge/`** — VPS edge ops run **from the laptop** (thin SSH wrappers; auth
+  via the gitignored key `.secrets/orion_ci`, no manual login):
+  - **`setup.sh`** — provision / re-provision the VPS edge (idempotent). Key-first;
+    a brand-new box falls back to `deploy.conf` (copy `deploy.conf.example`).
+  - **`setup-github.sh`** — wire the deploy key + `VPS_HOST/USER/PORT` into GitHub
+    and create the gated `production` environment (tag→prod approval).
+  - **`ops.sh <status|start|stop|restart|reload|logs|health>`** — drive `orion-web`
+    on the box; `health` curls the public `https://<host>/` end-to-end.
+- **`remote/edge/`** — the on-VPS counterparts (`setup.sh`, `ops.sh`, `Caddyfile`,
+  `orion-web.service`, `gen-*.sh`) the laptop scripts call. See its
+  [`README.md`](dev/remote/edge/README.md) for the hosting model + env/slot table.
 - **`delete-working-tree.sh`** — remove the **current** linked worktree
   (`git/orion-*`) and drop you back in the main checkout (`git/orion`). **Source
   it** (a normal run can't cd your shell): `source scripts/dev/delete-working-tree.sh`.

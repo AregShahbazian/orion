@@ -1,0 +1,3 @@
+# Laptop-side edge secrets — never commit.
+deploy.conf
+.secrets/

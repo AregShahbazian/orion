@@ -1,0 +1,27 @@
+# Orion static hosting (Caddy). Serves, over automatic HTTPS:
+#   /web/[<slot>/]   -> the Flutter web builds   (rsynced by ci.yml)
+#   /apk/[<slot>/]   -> the APK index + builds    (scp/rsynced by ci.yml)
+#   /                -> the generated landing page (site/index.html)
+#
+# Host comes from $ORION_HOST (e.g. 203-0-113-10.sslip.io — a free wildcard-DNS
+# name resolving to the VPS IP, so Let's Encrypt can issue a real cert via HTTP-01;
+# a bare IP cannot get a cert). setup.sh derives it from the VPS IP and writes it to
+# /root/orion/orion-web.env, which the edge container reads (env_file). Caddy then provisions
+# and renews the cert automatically (needs ports 80 + 443 open).
+#
+# To move to a real domain later: set ORION_HOST to the domain — no other change.
+
+# Sibling app sites on this shared edge (e.g. putcafe) — each app owns
+# /root/<app>/site.caddy and provisions itself with its own setup script. A glob
+# import with zero matches is fine, so this is a no-op until an app exists.
+import /root/*/site.caddy
+
+{$ORION_HOST} {
+	root * /root/orion/site
+	file_server
+
+	# Android only offers "install" (instead of dumping bytes) when the APK is served
+	# with this MIME type.
+	@apk path *.apk
+	header @apk Content-Type application/vnd.android.package-archive
+}

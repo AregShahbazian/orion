@@ -1,0 +1,33 @@
+# Shared VPS edge (Caddy) — runs on the VPS at /root/orion/edge (provisioned by
+# scripts/dev/local/edge/setup.sh). Containerized so it shows in the ops UI
+# (Dozzle) like every other service, as its own "edge" group.
+#
+# network_mode: host keeps everything byte-identical to the old orion-web systemd
+# unit: binds :80/:443 (+udp) and the 127.0.0.1:2019 admin API directly, and the
+# Caddyfile's reverse_proxy targets (127.0.0.1:81xx app containers) stay reachable.
+# /root/orion and /root/putcafe are mounted read-only at their host paths so the
+# Caddyfile, the `import /root/*/site.caddy` glob, and the file_server roots
+# resolve unchanged. A new sibling app needs one more mount line here.
+name: edge
+services:
+  caddy:
+    image: caddy:2.11
+    network_mode: host
+    command: caddy run --config /root/orion/Caddyfile --adapter caddyfile
+    env_file:
+      - /root/orion/orion-web.env
+    labels:
+      # Dozzle sidebar group (single-container compose projects don't get one).
+      dev.dozzle.group: edge
+    volumes:
+      - /root/orion:/root/orion:ro
+      - /root/putcafe:/root/putcafe:ro
+      - ./data:/data
+      - ./config:/config
+    healthcheck:
+      # Admin-API pings are logged by caddy — keep the interval long to limit noise.
+      test: ["CMD", "wget", "-qO/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
