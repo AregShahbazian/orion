@@ -1,25 +1,34 @@
 #!/usr/bin/env bash
-# Runs ON the VPS (as root). Routine orion-web edge operations — the on-box half; the
-# laptop wrapper scripts/dev/local/edge/ops.sh SSHes in and calls this.
+# Runs ON the VPS (as root). Routine edge operations — the on-box half; the laptop
+# wrapper scripts/dev/local/edge/ops.sh SSHes in and calls this. The edge is the
+# `edge` compose stack (caddy container, host networking) at /root/orion/edge.
 #
 #   bash ops.sh <status|start|stop|restart|reload|logs|health>
 #
-#   status   service state + recent log lines
-#   start|stop|restart   systemctl the unit
+#   status   container state + recent log lines
+#   start|stop|restart   the compose service
 #   reload   apply a Caddyfile change with no dropped connections
-#   logs     follow the journal (Ctrl-C to stop)
+#   logs     follow the container logs (Ctrl-C to stop)
 #   health   curl the served web + apk paths (locally, over HTTPS)
 set -euo pipefail
-UNIT=orion-web
+EDGE=/root/orion/edge
+compose() { docker compose -f "$EDGE/compose.yml" "$@"; }
 cmd="${1:-}"
 
 case "$cmd" in
-  status)  systemctl status "$UNIT" --no-pager ;;
-  start)   systemctl start   "$UNIT" ;;
-  stop)    systemctl stop    "$UNIT" ;;
-  restart) systemctl restart "$UNIT" ;;
-  reload)  systemctl reload  "$UNIT" ;;
-  logs)    journalctl -u "$UNIT" -f ;;
+  status)
+    docker ps --filter name=edge-caddy --format 'edge-caddy: {{.Status}}' | grep . \
+      || echo "edge-caddy: NOT RUNNING"
+    compose logs --tail 10 caddy 2>/dev/null || true
+    ;;
+  start)   compose up -d ;;
+  stop)    compose stop ;;
+  restart) compose restart ;;
+  reload)
+    compose exec -T caddy caddy reload \
+      --config /root/orion/Caddyfile --adapter caddyfile --force
+    ;;
+  logs)    compose logs -f caddy ;;
   health)
     # shellcheck disable=SC1091  # generated on the box at setup time
     host="$(. /root/orion/orion-web.env 2>/dev/null; echo "${ORION_HOST:-}")"

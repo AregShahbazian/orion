@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RUN ON YOUR LAPTOP. Routine orion-web edge operations without logging into the VPS —
+# RUN ON YOUR LAPTOP. Routine edge operations without logging into the VPS —
 # a thin SSH wrapper around scripts/dev/remote/edge/ops.sh on the box.
 #
 #   ./scripts/dev/local/edge/ops.sh <status|start|stop|restart|reload|logs|health>

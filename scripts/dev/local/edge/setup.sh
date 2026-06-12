@@ -53,12 +53,14 @@ log "creating /root/orion on the VPS"
 ssh_ 'mkdir -p /root/orion/site/web /root/orion/site/apk'
 
 log "uploading edge assets"
-scp_ "$remote_dir/Caddyfile" "$remote_dir/orion-web.service" \
+ssh_ 'mkdir -p /root/orion/edge'
+scp_ "$remote_dir/Caddyfile" \
      "$remote_dir/gen-apk-index.sh" "$remote_dir/gen-landing-index.sh" \
      "$remote_dir/setup.sh" "$remote_dir/ops.sh" \
      "$USER@$IP:/root/orion/"
+scp_ "$remote_dir/compose.yml" "$USER@$IP:/root/orion/edge/"
 
-log "running remote setup (idempotent: Caddy, HTTPS host, orion-web, CI key)…"
+log "running remote setup (idempotent: docker, HTTPS host, edge container, CI key)…"
 ssh_ "ORION_HOST='$ORION_HOST' bash /root/orion/setup.sh"
 
 if [ "$FIRST_RUN" -eq 1 ]; then
