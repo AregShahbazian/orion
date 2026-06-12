@@ -11,6 +11,11 @@
 #
 # To move to a real domain later: set ORION_HOST to the domain — no other change.
 
+# Sibling app sites on this shared edge (e.g. putcafe) — each app owns
+# /root/<app>/site.caddy and provisions itself with its own setup script. A glob
+# import with zero matches is fine, so this is a no-op until an app exists.
+import /root/*/site.caddy
+
 {$ORION_HOST} {
 	root * /root/orion/site
 	file_server
