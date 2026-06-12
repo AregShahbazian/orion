@@ -1,5 +1,7 @@
 # Copy to `deploy.conf` (gitignored — contains the root PASSWORD; never commit it).
-# Read by 01-provision-vps.sh to reach the VPS over SSH.
+# Only needed for the FIRST provision of a brand-new VPS (password auth). Once setup.sh
+# has saved .secrets/orion_ci, later runs use that key and ignore this file.
+# Read by setup.sh to reach the VPS over SSH.
 
 SERVER_IP=""             # the VPS IP
 SERVER_USER="root"       # initial login user
