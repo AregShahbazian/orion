@@ -4,9 +4,9 @@ Mapping app.
 
 ## Architecture
 
-Flutter app — Android, iOS, and Web from one codebase — for GPS tracking and
-offline maps. Offline-first, no backend. Full map in `docs/architecture.md`; read
-it before non-trivial work in `lib/`. The essentials:
+Flutter app — Android and Web from one codebase (iOS deferred) — for GPS
+tracking and offline maps. Offline-first, no backend. Full map in
+`docs/architecture.md`; read it before non-trivial work in `lib/`. The essentials:
 
 - **No state framework.** Hand-rolled `ChangeNotifier` singletons + one command bus.
 - **`InteractionController` is the spine** (`lib/core/interaction/`). Every user
@@ -22,26 +22,22 @@ it before non-trivial work in `lib/`. The essentials:
 - **Layout:** `lib/core/` (db, interaction, log, ui), `lib/features/`
   (map, tracks, settings), `lib/app/` (router, observers), `main.dart` entry.
 
-## Workflow docs
+## Docs in this repo
 
-Planning and workflow docs (MVP, phases, tasks, discussions, bug notes, the
-feature backlog, dependency references) live in `ai/`, which resolves to
-`~/ai/orion/` — not in this repo. Start there for context:
-
-- `ai/README.md` — root overview (phases, discussions, ideas backlog).
-- `ai/mvp.md` — first-release MVP definition.
-- `ai/phase-<N>/<task>/` — per-task `prd.md` → `design.md` → `tasks.md` → `review.md`.
-- `ai/discussions/` — dated discussion summaries.
-- `ai/backlog.md` — captured feature ideas.
-- `ai/bugfix/` — `.fix.md` bug investigation notes.
-
-See `~/.claude/programming.md` for the centralized `~/ai/<repo>/` layout and rules.
-
-## Debugging the web app
-
+- `README.md` — what the app is, how to run and test it, project status.
+- `docs/architecture.md` — the full architecture map (read first).
+- `docs/deploy.md` — CI, per-branch previews, staging/prod deploys.
 - `docs/playwright-testing.md` — how to launch the web dev server and drive the
   running app with the Playwright MCP (console bridge, screenshots, what works /
   doesn't). Follow this when asked to "debug with Playwright".
+- `scripts/README.md` — dev helper scripts (web/mobile run + E2E, the `orion.sh`
+  remote-control bridge, edge/VPS ops).
+
+Planning docs (PRDs, design notes, task lists, reviews, discussion summaries,
+bug-investigation notes, the feature backlog) are kept outside this repo. Test
+file headers refer to the "dev/testing strategy" — that is one of those
+external docs; the test categories it defines are unit, widget, golden, and
+end-to-end (see `README.md` → Testing).
 
 ## Rules
 

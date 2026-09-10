@@ -1,4 +1,4 @@
-// Web/mobile E2E for the dev/testing strategy (~/ai/orion/dev/testing/prd.md).
+// Web/mobile E2E for the dev/testing strategy.
 //
 // Taps the real settings HUD button (found by its interaction-id Key) and
 // asserts the route became /settings, then fires the platform back action (the

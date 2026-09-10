@@ -1,4 +1,4 @@
-// Widget test (dev/testing strategy ~/ai/orion/dev/testing/prd.md — widget
+// Widget test (dev/testing strategy — widget
 // category). Mounts the real SettingsScreen headless (no map, no navigation, no
 // device) and verifies a toggle goes through the bus and flips persisted state:
 // tap the switch → its settings.*.set interaction dispatches → SettingsController

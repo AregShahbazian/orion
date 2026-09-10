@@ -1,4 +1,4 @@
-// Golden test (dev/testing strategy ~/ai/orion/dev/testing/prd.md — golden
+// Golden test (dev/testing strategy — golden
 // category). Pixel-pins the track-list row. Name + colour come from the real
 // Gaia fixture (test/fixtures/gaia_sample.gpx); the date/distance/duration are
 // fixed constants so the rendered text doesn't shift with the machine timezone.

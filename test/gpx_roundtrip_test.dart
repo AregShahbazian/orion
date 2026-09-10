@@ -1,4 +1,4 @@
-// Unit tests (dev/testing strategy ~/ai/orion/dev/testing/prd.md — unit
+// Unit tests (dev/testing strategy — unit
 // category) for the GPX parse/import + export logic, exercised against two
 // *real* fixtures, one per supported exporter:
 //   - test/fixtures/mytracks_sample.gpx — MyTracks: one <trk> (topografix:color)

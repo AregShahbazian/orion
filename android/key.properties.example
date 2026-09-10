@@ -1,11 +1,10 @@
 # Template for android/key.properties (which is GITIGNORED — never commit the real one).
-# Copy this to `key.properties` and fill in your keystore passwords.
+# Copy this to `key.properties` and fill in your keystore details.
 #
-# Keystore lives OUTSIDE the repo: ~/certs/android/mby4m.jks
-# Single keystore file for the mby4m Play account, with ONE ALIAS PER APP
-# (this app's alias is `orion`). storePassword is the shared file password;
+# Keep the keystore OUTSIDE the repo. One keystore file may hold one alias per
+# app (this app's alias is `orion`): storePassword is the file password;
 # keyPassword is this alias's key password.
 storePassword=your-keystore-password
 keyPassword=your-orion-key-password
 keyAlias=orion
-storeFile=/home/areg/certs/android/mby4m.jks
+storeFile=/absolute/path/to/your/keystore.jks

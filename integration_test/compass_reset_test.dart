@@ -1,4 +1,4 @@
-// Web/mobile E2E for the dev/testing strategy (~/ai/orion/dev/testing/prd.md).
+// Web/mobile E2E for the dev/testing strategy.
 //
 // Waits for the app to be ready, rotates the map, confirms the rotation via a
 // direct controller read, presses the real compass reset button (located by its
